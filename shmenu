@@ -26,12 +26,11 @@ esc() {
 }
 
 term_setup() {
-    num=$1; shift
     bottom=$((LINES - 2))				# space for bottom status_line
     top=3		  				# space for top status_line
     fin=$(( bottom - (bottom - (top - 1)) % num ))	# bottom for content printed
 
-    stty="$(stty -g < /dev/tty)"
+    stty=$(stty -g)
     stty -icanon -echo
     esc screen_alt h
     esc DECAWM l
@@ -57,22 +56,19 @@ term_reset() {
     esc ED2          >&2
     esc DECSTBM      >&2
     esc screen_alt l >&2
-    stty "$stty" < /dev/tty
+    stty "$stty"
 }
 
 redraw() {
-    num=$1; shift
     esc ED2
 
-    status_line 't'
-    list_print "$num" "$@"
-    status_line 'b' "$#"
-    # status_line 'b' "y2:$y2 pos:$pos num:$num top:$top fin:$fin cur:$cur" # DEBUG
+    status_line_top
+    list_print "$@"
+    status_line_bottom "$#"
 }
 
 
 list_print() {
-    num=$1; shift
     esc CUP "$top"
 
     i=1
@@ -86,8 +82,8 @@ list_print() {
         ;;
 
         1) # redraw after go back
-            old_reset "$@"
 	    shift "$((pos >= fin ? (pos - y2) / num : 0))"
+	    unset hist
         ;;
 
         *) # everything else
@@ -119,8 +115,12 @@ cur_assign(){ # assign $cur > 9
     cur=$1
 }
 
+old_reset() {
+    num=$old_num y=$old_y y2=$old_y2 pos=$old_pos cur=$old_cur
+}
+
 arg_print() {
-    offset=$1
+    local offset=$1
 
     case $offset in
         "$y") esc SGR 33 7
@@ -143,109 +143,51 @@ arg_format() { # token
 	nldel) printf %s "${1%$nl}" ;;
 	'') printf %s "$1" ;;
     esac
-    # case "$token" in
-	# 's'|'c'|'o'|'n'|'e') printf %s "${1%$nl}" ;;
-	# '?'|'i') printf %s "$1" ;;
-    #     ''|'p'|'b'|'B'|'R'|'r') printf %s "${1##*/}" ;;
-	# 'q')
-	    # case "$token_q" in
-	        # ''|'p'|'sc'|'sg'|'so'|'e') printf %s "$1" ;;
-		# 'b'|'B'|'Rc'|'Re') printf %s "${1%$nl}" ;;
-	    # esac
-	    # ;;
-    # esac
     esc SGR
     printf '\r'
 }
 
-
-status_line() {
-    caption=$1; shift
+status_line_top () {
     esc DECSC
-    case "$caption" in
-	't') esc CUP 1 ;;
-	'b') esc CUP "$LINES" ;;
-    esac
-
+    esc CUP 1
     case $USER in
         root) esc SGR 31 7 ;;
-           *)
-	       case "$caption" in
-	           't') esc SGR 36 7 ;;
-		   'b') esc SGR 34 7 ;;
-	       esac
-	       ;;
+	*) [ -n "$urgent" ] && esc SGR 31 7 || esc SGR 36 7 ;;
     esac
-
-    case "$caption" in
-        't')
-	    printf '%*s\r' "$COLUMNS"
-	    case $msg in
-	        '') printf %s "shmenu" ;;
-		*) printf %s "$msg" ;;
-	    esac
-	    ;;
-	'b')
-	    printf '%*s\r%s ' "$COLUMNS" "" "($y/$1)"
-	    case $ltype in
-		'') printf %s "" ;;
-		*) printf %s "$ltype" ;;
-	    esac
+    printf '%*s\r' "$COLUMNS"
+    case $msg in
+	'') printf %s "shmenu" ;;
+	*) printf %s "$msg" ;;
     esac
     esc SGR
     esc DECRC
 }
 
-term_scroll_up() {
-    num=$1; shift
-
-    case $y in
-        -*|0|1) return ;;
+status_line_bottom () {
+    esc DECSC
+    esc CUP "$LINES"
+    case $USER in
+        root) esc SGR 31 7 ;;
+	*) [ -n "$urgent" ] && esc SGR 93 7 || esc SGR 34 7
     esac
-
-    y=$((y - 1)) pos=$(( num * y - num + top ))
-
-    arg_print "$((y + 1))" "$@"
-
-    case "$y2" in
-	$top) [ $num -gt 1 ] && esc CUU $((num - 1)); esc IL "$num" ;;
-	*) esc CUU "$((num * 2 - 1))"; y2=$(( y2 > top ? y2 - num : top )) ;;
+    printf '%*s\r%s ' "$COLUMNS" "" "($y/$1)"
+    case $ltype in
+	'') printf %s "Menu system written in POSIX shell" ;;
+	*) printf %s "$ltype" ;;
     esac
-    arg_print "$y" "$@"
-
-    # Restore cursor to match y2
-    [ $num -gt 1 ] && esc CUU "$((num - 1))"
-    status_line 't'
-    status_line 'b' "$#"
-    # status_line 'b' "y2:$y2 pos:$pos num:$num top:$top fin:$fin" # DEBUG
+    esc SGR
+    esc DECRC
 }
 
-term_scroll_down() {
-    num=$1; shift
 
-    case $((y - $#)) in
-	[0-9]*) return
+term_move_up() {
+
+    local fraction=$1; shift 1
+
+    case $fraction in
+        0) move=1 ;; # fraction=0, scroll up
+	*) move=$(((end - top) / (fraction * num) > 2 ? (end - top) / (fraction * num) : 2)) ;; # fraction>0, page up
     esac
-
-    y=$((y + 1))  pos=$(( num * y - num + top ))
-    y2=$(( y2 + num < fin - (num - 1) ? y2 + num : fin - (num - 1) ))
-
-
-    arg_print "$((y - 1))" "$@"
-    printf '\n'
-    arg_print "$y" "$@"
-
-    [ $num -gt 1 ] && esc CUU "$((num - 1))"
-
-    status_line 't'
-    status_line 'b' "$#"
-    # status_line 'b' "y2:$y2 pos:$pos num:$num top:$top fin:$fin" # DEBUG
-}
-
-term_page_up() {
-    num=$1
-    fraction=$2; shift 2
-    move=$(((end - top) / (fraction * num) > 2 ? (end - top) / (fraction * num) : 2))
 
     case $y in
 	-*|0|1) return ;;
@@ -253,6 +195,7 @@ term_page_up() {
     case $((y - 1 - move)) in
 	-*|0) move=$((y - 1)) ;;
     esac
+
     y=$((y - move)) pos=$(( num * y - num + top ))
 
     for i in $(seq $((y + 1)) $((y + move))); do
@@ -266,19 +209,23 @@ term_page_up() {
 
     # Restore cursor to match y2
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
-    status_line 't'
-    status_line 'b' "$#"
-    # status_line 'b' "y2:$y2 pos:$pos num:$num top:$top fin:$fin" # DEBUG
+    status_line_top
+    status_line_bottom "$#"
 }
 
-term_page_down() {
-    num=$1
-    fraction=$2; shift 2
-    move=$(((end - top) / (fraction * num) > 2 ? (end - top) / (fraction * num) : 2))
-    # move=$(((end - top) / (4 * num) > 2 ? (end - top) / (4 * num) : 2))
+term_move_down() {
+
+    local fraction=$1; shift 1
+
+    case $fraction in
+        0) move=1 ;; # fraction=0, scroll down
+	*) move=$(((end - top) / (fraction * num) > 2 ? (end - top) / (fraction * num) : 2)) ;; # fraction>0, page down
+    esac
+
     case $(( y - $# + move )) in
 	[1-9]*) move=$(($# - y)) ;;
     esac
+
     y=$(( y + move ))
     pos=$(( num * y - num + top ))
     y2=$(( y2 + num * move < fin - (num - 1) ? y2 + num * move : fin - (num - 1) ))
@@ -292,9 +239,8 @@ term_page_down() {
 
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
 
-    status_line 't'
-    status_line 'b' "$#"
-    # status_line 'b' "y2:$y2 pos:$pos num:$num top:$top fin:$fin" # DEBUG
+    status_line_top
+    status_line_bottom "$#"
 }
 
 prompt() {
@@ -314,11 +260,13 @@ prompt() {
 
     esc DECRC
     esc DECTCEM l
-    status_line 'b' "($y/$#) $PWD"
+    status_line_bottom "($y/$#) $PWD"
 }
 
 search() {
-    IFS="$2" str="$3"
+    local IFS="$2"
+    local str="$3"
+    local filter
     set -- $1
     for line do
 	case $str in
@@ -336,26 +284,25 @@ search() {
 	esac
     done
     filt_out=${filter#*$IFS}
-    unset IFS filter
 }
 
 key() {
     while key=$(dd ibs=1 count=1 2>/dev/null); do
 	case $key${esc:=0} in
 	    "$ctrl_u"?|~5)
-		term_page_up $num 4 "$@"
+		term_move_up 4 "$@"
 	    ;;
 
 	    "$ctrl_f"?|~6)
-		term_page_down $num 4 "$@"
+		term_move_down 4 "$@"
 	    ;;
 
 	    k?|A2)
-		term_scroll_up $num "$@"
+		term_move_up 0 "$@"
 	    ;;
 
             j?|B2)
-		term_scroll_down $num "$@"
+		term_move_down 0 "$@"
 	    ;;
 
             g?|H2)
@@ -364,30 +311,42 @@ key() {
                 esac
 
                 y=1 y2=$top cur=$1
-		redraw "$num" "$@"
+		redraw "$@"
             ;;
 
             G?|F2)
 		y=$# pos=$(( num * y - num + top ))
 		y2=$(( pos < fin - (num - 1) ? pos : fin - (num - 1) ))
 		cur_assign "$y" "$@"
-		redraw "$num" "$@"
+		redraw "$@"
             ;;
 
-            l?|C2|"$esc") # ARROW RIGHT # token
+            l?|C2|"$esc") # ARROW RIGHT
 		term_reset
 		return 2
             ;;
 
             h?|D2|"$bs_char"?) # ARROW LEFT
+
+		[ -n "$search_ind" ] || [ -n "$help_ind" ] &&
+		    {
+			unset search_ind help_ind
+			IFS=$ifs
+			set -- $text
+			unset IFS
+			hist=1
+			old_reset "$@"
+			redraw "$@"
+		    }
             ;;
 
-            /?) # token
+            /?)
                 prompt / r
-		filter $@ "$IFS" "$ans"
-		IFS=$nl
-		set -- $filter
-		unset IFS filter
+		search "$text" "$ifs" "$ans"
+		local search_ind=1
+		IFS=$ifs
+		set -- $filt_out
+		unset IFS
                 case $# in
                     0)
 			num=1
@@ -395,23 +354,28 @@ key() {
 			;;
                 esac
 
-		y=1 y2=$top cur=$1 ltype="$filter" msg="filter by *$ans*"
-                redraw $num "$@"
+		old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur
+		y=1 y2=$top cur=$1 ltype="Search mode" msg="Search by *$ans*"
+                redraw "$@"
             ;;
 
             \??)
-                 set -- 'k/↑ - up' \
-			'j/↓ - down' \
-		        'l/→ - right' \
-		        'h/← - left' \
-			'Ctrl-f - PageDown' \
-			'Ctrl-u - PageUp' \
-                        'g - go to top' \
-                        'G - go to bottom' \
-                        '/ - search' \
-                        '? - show keybinds'
+		local help_ind=1
+		set -- 'k/↑ - up' \
+		       'j/↓ - down' \
+		       'l/→ - right' \
+		       'h/← - left' \
+		       'Ctrl-f/PageDown - PageDown' \
+		       'Ctrl-u/PageUp - PageUp' \
+		       'g/Home - go to top' \
+		       'G/End - go to bottom' \
+		       '/ - search' \
+		       '? - show keybinds' \
+		       'q - quit'
+
+		old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur
                 num=1 y=1 y2=$top cur=$1 ltype= msg=keybinds token='?'
-                redraw $num "$@"
+                redraw "$@"
             ;;
 
             q?)
@@ -434,51 +398,68 @@ Usage:
 shmenu [OPTIONS] ([ARGS])
 
   -h,			Show help options
-  -n,	[num]		Set numbers of line per entry
-  -s,	[IFS]		Set IFS
-  -t, 	[text]		Set text to display
-  -f,	[format]	Set the format to print out text
-			    basename: basename from pathname globbing
+  -n=[num]		Set numbers of line per entry
+  -s=[IFS]		Set IFS
+  -t=[text]		Set text to display
+  -f=[format]		Set the format to print out text
+
+format detail:
+  nldel			delete last nl, equiv to "\${1%\$nl}"
+  basename		only print basename, equiv to "\${1##*/}" ;;
+
+  if unset or empty, then equiv to "\$1"
+
 EOF
 }
 
 main() {
-    esc_c=$(printf '\033')
-    bs_char=$(printf '\177')
-    ctrl_f=$(printf '\006')
-    ctrl_u=$(printf '\025')
-    tilda=$(printf '\176')
-
-    # num=$1; IFS="$2"; input=$3; shift 3
-    set -- $text
-    unset IFS
-    cur=$1
-    term_resize
-    term_setup $num
 
     trap 'term_reset' INT
-    trap 'term_resize; term_setup $num; y=1 y2=$top; redraw $num "$@"' WINCH
+    trap 'term_resize; term_setup; y=1 y2=$top; redraw "$@"' WINCH
 
-    y=1 y2=$top
-    redraw $num "$@"
+    term_resize
+
+    IFS=${ifs:=$nl}
+    set -- $text
+    unset IFS
+
+    term_setup
+    y=1 y2=$top cur=$1
+    redraw "$@"
 
     key "$@"
+
 }
 
 nl='
 '
 tab='	'
 
-while getopts "n:s:t:f:h" result; do
+# special key setting
+esc_c=$(printf '\033')
+bs_char=$(printf '\177')
+ctrl_f=$(printf '\006')
+ctrl_u=$(printf '\025')
+tilda=$(printf '\176')
+
+while getopts "n:s:t:f:uh" result; do
     case "${result}" in
         n) num=${OPTARG} ;;
-        s) IFS=${OPTARG} ;;
+        s) ifs=${OPTARG} ;;
         t) text=${OPTARG} ;;
         f) format=${OPTARG} ;;
+	u) urgent=1 ;;
 	h) usage && exit 0 ;;
     esac
 done
 
-# main "$@"
-main "$@" >/dev/tty
-printf '%s' "$cur"
+# Accept pipe stdin
+[ "$text" = '-' ] && text=$(cat -u -)
+
+if [ -n "$num" ] && [ -n "$text" ]; then
+    main "$@" <&2 >/dev/tty # why it works, I don't know.
+    printf '%s' "$cur" >&1
+else
+    printf '%s' 'Need to use `-n` to specify numbers of line per entry, and use `-t` for text to display.'
+    exit 0
+fi
