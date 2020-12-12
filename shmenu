@@ -263,24 +263,53 @@ prompt() {
 }
 
 search() {
+    local text="$1"
     local IFS="$2"
     local str="$3"
-    local filter
-    for line do
-	case $case_insense in
-	    1) # case-insensitive filter
-		lower_line=$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')
-		case $lower_line in
-		    *$str*) filter="$filter$IFS$line" ;;
+    local filter posnum lower_text lower_str i j n
+
+    case $case_insense in
+	1) # case-insensitive filter
+	    # lowercase both text and str
+	    lower_text=$(printf '%s' "$text" | tr '[:upper:]' '[:lower:]')
+	    lower_str=$(printf '%s' "$str" | tr '[:upper:]' '[:lower:]')
+
+	    # First run: match lowercase and record the number of positional parameter
+	    set -- $lower_text
+
+	    for line do
+		i=$((i+1))
+		case $line in
+		    *$lower_str*) posnum="$posnum $i" ;;
 		esac
-		;;
-	    *) # case-sensitive filter
+	    done
+	    posnum=${posnum#* }
+
+	    # Second run: match the item based on that list above
+	    set -- $text
+
+	    for line do
+		j=$((j+1))
+		n=${posnum%% *} # first line number
+		case $j in
+		    "$n")
+			filter="$filter$IFS$line"
+			posnum=${posnum#* } # delete first line
+			;;
+		esac
+	    done
+
+	    ;;
+	*) # case-sensitive filter
+	    set -- $text
+	    for line do
 		case $line in
 		    *$str*) filter="$filter$IFS$line" ;;
 		esac
-		;;
-	esac
-    done
+	    done
+	    ;;
+    esac
+
     filt_out=${filter#*$IFS}
 }
 
@@ -354,7 +383,7 @@ key() {
 			;;
                 esac
 
-		old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur
+		old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format
 		y=1 y2=$top cur=$1 ltype="Search mode" msg="Search by *$ans*"
                 redraw "$@"
             ;;
@@ -399,10 +428,11 @@ Usage:
 shmenu [OPTIONS] ([ARGS])
 
   -h,			Show help options
-  -n=[num]		Set numbers of line per entry
-  -s=[IFS]		Set IFS
-  -t=[text]		Set text to display
-  -f=[format]		Set the format to print out text
+  -i,			Set case-insensitive search
+  -n=[num],		Set numbers of line per entry
+  -s=[IFS],		Set IFS
+  -t=[text],		Set text to display
+  -f=[format],		Set the format to print out text
 
 format detail:
   nldel			delete last nl, equiv to "\${1%\$nl}"
@@ -454,6 +484,7 @@ while getopts "n:s:t:f:uhi" result; do
         f) format=${OPTARG} ;;
 	u) urgent=1 ;;
 	i) case_insense=1 ;;
+
 	h) usage && exit 0 ;;
     esac
 done
