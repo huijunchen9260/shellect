@@ -39,7 +39,7 @@ term_setup() {
     esc DECSTBM "$top" "$fin"
 }
 
-term_resize() {
+term_getsize() {
     # false-positive, behavior intentional, globbing is disabled.
     # shellcheck disable=2046
     {
@@ -116,7 +116,7 @@ cur_assign(){ # assign $cur > 9
 }
 
 old_reset() {
-    num=$old_num y=$old_y y2=$old_y2 pos=$old_pos cur=$old_cur
+    num=$old_num y=$old_y y2=$old_y2 pos=$old_pos cur=$old_cur format=$old_format
 }
 
 arg_print() {
@@ -168,7 +168,7 @@ status_line_bottom () {
     esc CUP "$LINES"
     case $USER in
         root) esc SGR 31 7 ;;
-	*) [ -n "$urgent" ] && esc SGR 93 7 || esc SGR 34 7
+	*) [ -n "$urgent" ] && esc SGR 91 7 || esc SGR 34 7
     esac
     printf '%*s\r%s ' "$COLUMNS" "" "($y/$1)"
     case $ltype in
@@ -260,7 +260,6 @@ prompt() {
 
     esc DECRC
     esc DECTCEM l
-    status_line_bottom "($y/$#) $PWD"
 }
 
 search() {
@@ -269,15 +268,15 @@ search() {
     local filter
     set -- $1
     for line do
-	case $str in
-	    *[[:upper:]]*) # contain uppercase, do case-sensitive filter
-		case $line in
+	case $case_insense in
+	    1) # case-insensitive filter
+		lower_line=$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')
+		case $lower_line in
 		    *$str*) filter="$filter$IFS$line" ;;
 		esac
 		;;
-	    *) # o/w, do case-insensitive filter
-		lower_line=$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')
-		case $lower_line in
+	    *) # case-sensitive filter
+		case $line in
 		    *$str*) filter="$filter$IFS$line" ;;
 		esac
 		;;
@@ -341,7 +340,9 @@ key() {
             ;;
 
             /?)
+		ltype="Searching..."
                 prompt / r
+		status_line_bottom "$#"
 		search "$text" "$ifs" "$ans"
 		local search_ind=1
 		IFS=$ifs
@@ -373,7 +374,8 @@ key() {
 		       '? - show keybinds' \
 		       'q - quit'
 
-		old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur
+		old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format
+		unset format
                 num=1 y=1 y2=$top cur=$1 ltype= msg=keybinds token='?'
                 redraw "$@"
             ;;
@@ -415,14 +417,13 @@ EOF
 main() {
 
     trap 'term_reset' INT
-    trap 'term_resize; term_setup; y=1 y2=$top; redraw "$@"' WINCH
-
-    term_resize
+    trap 'term_getsize; term_setup; y=1 y2=$top; redraw "$@"' WINCH
 
     IFS=${ifs:=$nl}
     set -- $text
     unset IFS
 
+    term_getsize
     term_setup
     y=1 y2=$top cur=$1
     redraw "$@"
@@ -442,24 +443,28 @@ ctrl_f=$(printf '\006')
 ctrl_u=$(printf '\025')
 tilda=$(printf '\176')
 
-while getopts "n:s:t:f:uh" result; do
+while getopts "n:s:t:f:uhi" result; do
     case "${result}" in
         n) num=${OPTARG} ;;
         s) ifs=${OPTARG} ;;
         t) text=${OPTARG} ;;
         f) format=${OPTARG} ;;
 	u) urgent=1 ;;
+	i) case_insense=1 ;;
 	h) usage && exit 0 ;;
     esac
 done
 
-# Accept pipe stdin
-[ "$text" = '-' ] && text=$(cat -u -)
+case "$text" in
+    '') text=$(cat -u -) ;; # Accept pipe stdin
+    *'-'*) # Allow stdin pathname globbing
+	pre=${text%%-*}
+	post=${text##*-}
+	text=$pre$(cat -u -)$post
+	;;
+esac
 
-if [ -n "$num" ] && [ -n "$text" ]; then
-    main "$@" <&2 >/dev/tty # why it works, I don't know.
-    printf '%s' "$cur" >&1
-else
-    printf '%s' 'Need to use `-n` to specify numbers of line per entry, and use `-t` for text to display.'
-    exit 0
-fi
+num=${num:=1} # num=1 if unset
+main "$@" <&2 >/dev/tty # why it works, I don't know.
+printf '%s' "$cur" >&1
+
