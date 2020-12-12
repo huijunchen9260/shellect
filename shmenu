@@ -266,7 +266,6 @@ search() {
     local IFS="$2"
     local str="$3"
     local filter
-    set -- $1
     for line do
 	case $case_insense in
 	    1) # case-insensitive filter
@@ -296,15 +295,15 @@ key() {
 		term_move_down 4 "$@"
 	    ;;
 
-	    k?|A2)
+	    k?|A2|"$ctrl_p"?)
 		term_move_up 0 "$@"
 	    ;;
 
-            j?|B2)
+            j?|B2|"$ctrl_n"?)
 		term_move_down 0 "$@"
 	    ;;
 
-            g?|H2)
+            g?|H2|"$ctrl_a"?)
                 case $y in
                     1) continue ;;
                 esac
@@ -313,7 +312,7 @@ key() {
 		redraw "$@"
             ;;
 
-            G?|F2)
+            G?|F2|"$ctrl_e"?)
 		y=$# pos=$(( num * y - num + top ))
 		y2=$(( pos < fin - (num - 1) ? pos : fin - (num - 1) ))
 		cur_assign "$y" "$@"
@@ -362,14 +361,14 @@ key() {
 
             \??)
 		local help_ind=1
-		set -- 'k/↑ - up' \
-		       'j/↓ - down' \
+		set -- 'k/↑/Ctrl-p - up' \
+		       'j/↓/Ctrl-n - down' \
 		       'l/→ - right' \
 		       'h/← - left' \
 		       'Ctrl-f/PageDown - PageDown' \
 		       'Ctrl-u/PageUp - PageUp' \
-		       'g/Home - go to top' \
-		       'G/End - go to bottom' \
+		       'g/Home/Ctrl-a - go to top' \
+		       'G/End/Ctrl-e - go to bottom' \
 		       '/ - search' \
 		       '? - show keybinds' \
 		       'q - quit'
@@ -441,6 +440,10 @@ esc_c=$(printf '\033')
 bs_char=$(printf '\177')
 ctrl_f=$(printf '\006')
 ctrl_u=$(printf '\025')
+ctrl_n=$(printf '\016')
+ctrl_p=$(printf '\020')
+ctrl_a=$(printf '\001')
+ctrl_e=$(printf '\005')
 tilda=$(printf '\176')
 
 while getopts "n:s:t:f:uhi" result; do
@@ -457,11 +460,6 @@ done
 
 case "$text" in
     '') text=$(cat -u -) ;; # Accept pipe stdin
-    *'-'*) # Allow stdin pathname globbing
-	pre=${text%%-*}
-	post=${text##*-}
-	text=$pre$(cat -u -)$post
-	;;
 esac
 
 num=${num:=1} # num=1 if unset

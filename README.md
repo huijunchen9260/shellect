@@ -31,19 +31,38 @@ shmenu -t "$HOME/*"	       # -t option
 The keybindings are:
 
 ```
-k/↑ - up
-j/↓ - down
+k/↑/Ctrl-p - up
+j/↓/Ctrl-n - down
 l/→ - right
 h/← - left
 Ctrl-f/PageDown - PageDown
 Ctrl-u/PageUp - PageUp
-g/Home - go to top
-G/End - go to bottom
+g/Home/Ctrl-a - go to top
+G/End/Ctrl-e - go to bottom
 / - search
 ? - show keybinds
 q - quit
 ```
 
+Command-line option:
+
+```
+Usage:
+
+shmenu [OPTIONS] ([ARGS])
+
+  -h,			Show help options
+  -n=[num]		Set numbers of line per entry
+  -s=[IFS]		Set IFS
+  -t=[text]		Set text to display
+  -f=[format]		Set the format to print out text
+
+format detail:
+  nldel			delete last nl, equiv to "\${1%\$nl}"
+  basename		only print basename, equiv to "\${1##*/}" ;;
+
+  if unset or empty, then equiv to "\$1"
+```
 
 
 
