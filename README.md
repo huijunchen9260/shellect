@@ -52,20 +52,17 @@ Usage:
 shmenu [OPTIONS] ([ARGS])
 
   -h,			Show help options
-  -n=[num]		Set numbers of line per entry
-  -s=[IFS]		Set IFS
-  -t=[text]		Set text to display
-  -f=[format]		Set the format to print out text
+  -i,			Set case-insensitive search
+  -n=[num],		Set numbers of line per entry
+  -s=[IFS],		Set IFS
+  -c=[content],		Set content to display
+  -f=[format],		Set the format to print out content
+  -t=[msg],		Set top status bar message
+  -b=[msg],		Set bottom status bar message
 
 format detail:
-  nldel			delete last nl, equiv to "\${1%\$nl}"
-  basename		only print basename, equiv to "\${1##*/}" ;;
+  nldel			delete last nl, equiv to "${1%$nl}"
+  basename		only print basename, equiv to "${1##*/}" ;;
 
-  if unset or empty, then equiv to "\$1"
+  if unset or empty, then equiv to "$1"
 ```
-
-
-
-
-
-

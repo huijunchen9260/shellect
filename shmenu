@@ -1,7 +1,18 @@
 #!/bin/sh
 
+# Variable explain:
+# $y: the current argument
+# $pos: the current position on argument y
+# $y2: the current position on current screen position (invert color using SGR 33 7)
+# $num: numbers of lines per argument
+# $fin: bottom for printable area, depends on num
+# $token: indicator for actions
+# Dimension is adjustable by $top & $bottom
+
 # Stolen from shfm
-# Reference: https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_sequences
+# Reference for color: https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_sequences
+# Reference for vt100: https://vt100.net/docs/vt510-rm/contents.html
+# Reference for escape sequence: https://github.com/dylanaraps/pure-sh-bible#escape-sequences
 esc() {
     case $1 in
         # vt100 (IL is vt102) (DECTCEM is vt520)
@@ -14,11 +25,41 @@ esc() {
         DECRC)   printf '%s8'       "$esc_c"           ;; # cursor restore
         DECSC)   printf '%s7'       "$esc_c"           ;; # cursor save
         DECSTBM) printf '%s[%s;%sr' "$esc_c" "$2" "$3" ;; # scroll region
+        DECSLRM) printf '%s[%s;%ss' "$esc_c" "$2" "$3" ;; # Set left and right margin
 	DECTCEM) printf '%s[?25%s'  "$esc_c" "$2"      ;; # (h: show; l: hide) cursor visible
 	ED[0-2]) printf '%s[%sJ'    "$esc_c" "${1#ED}" ;; # clear screen
         EL[0-2]) printf '%s[%sK'    "$esc_c" "${1#EL}" ;; # clear line
         IL)      printf '%s[%sL'    "$esc_c" "$2"      ;; # insert line
-        SGR)     printf '%s[%s;%sm' "$esc_c" "$2" "$3" ;; # colors
+	SGR)     printf '%s[%s;%sm' "$esc_c" "$2" "$3" ;; # colors ($2); attribute ($3)
+	    # Color list:
+	    # 			FG	BG
+	    # Black		30	40
+	    # Red		31	41
+	    # Green		32	42
+	    # Yellow		33	43
+	    # Blue		34	44
+	    # Magenta		35	45
+	    # Cyan		36	46
+	    # White		37	47
+	    # Bright Black 	90	100
+	    # Bright Red	91	101
+	    # Bright Green	92	102
+	    # Bright Yellow	93	103
+	    # Bright Blue	94	104
+	    # Bright Magenta	95	105
+	    # Bright Cyan	96	106
+	    # Bright White	97	107
+
+	    # Attribute list:
+	    # Reset					0/''
+	    # Bold					1
+	    # Faint					2
+	    # Italic					3
+	    # Underline					4
+	    # Slow blink				5
+	    # Swap foreground and background colors.	7
+	    # Hidden					8
+	    # Strike-through				9
 
         # xterm (since 1988, supported widely)
 	screen_alt) printf '%s[?1049%s' "$esc_c" "$2" ;; # (h: to; l: back from) alternate buffer
@@ -27,7 +68,7 @@ esc() {
 
 term_setup() {
     bottom=$((LINES - 2))				# space for bottom status_line
-    top=3		  				# space for top status_line
+    top=3						# space for top status_line
     fin=$(( bottom - (bottom - (top - 1)) % num ))	# bottom for content printed
 
     stty=$(stty -g)
@@ -55,6 +96,7 @@ term_reset() {
     esc DECTCEM h    >&2
     esc ED2          >&2
     esc DECSTBM      >&2
+    esc DECSLRM      >&2
     esc screen_alt l >&2
     stty "$stty"
 }
@@ -62,9 +104,9 @@ term_reset() {
 redraw() {
     esc ED2
 
-    status_line_top
+    status_line_top "$#"
     list_print "$@"
-    status_line_bottom "$#"
+    status_line_bottom
 }
 
 
@@ -91,16 +133,12 @@ list_print() {
         ;;
     esac
 
-    for file do
 
-	# same formula as $pos
-	case $(( num * i - num + top )) in
-	    $y2) esc SGR 33 7 ;;
-	esac
+    for file do
 
 	case $(( num * i - num + top - end )) in
 	    -*)
-		arg_format "$file"
+		list_format "$file"
 		esc CUD
 		;;
 	esac
@@ -115,34 +153,63 @@ cur_assign(){ # assign $cur > 9
     cur=$1
 }
 
+old_save() {
+    old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format
+}
+
 old_reset() {
     num=$old_num y=$old_y y2=$old_y2 pos=$old_pos cur=$old_cur format=$old_format
 }
 
-arg_print() {
-    local offset=$1
-
-    case $offset in
-        "$y") esc SGR 33 7
-    esac
-
-    shift "$offset"
-
-    case $offset in
-        "$y") cur=$1
-    esac
-
-    arg_format "$1"
-}
-
-arg_format() { # token
+list_format() {
     esc EL0
 
+    # overall display rule
+    case $(( num * i - num + top )) in
+	"$y2") esc CUR 2; esc SGR 35 1; printf '>'; esc SGR 33 1; esc CUR 2 ;;
+	*) esc CUR 5; ;;
+    esac
+
+    # content display format
     case "$format" in
 	basename) printf %s "${1##*/}" ;;
 	nldel) printf %s "${1%$nl}" ;;
 	'') printf %s "$1" ;;
     esac
+
+    esc SGR
+    printf '\r'
+}
+
+arg_print() {
+    offset=$1
+
+    shift "$offset"
+
+    case $offset in
+        "$y") cur=$1 ;;
+    esac
+
+    arg_format "$1"
+}
+
+
+arg_format() {
+    esc EL0
+
+    # overall display rule
+    case $offset in
+	"$y") esc CUR 2; esc SGR 35 1; printf '>'; esc SGR 33 1; esc CUR 2 ;;
+	*) esc CUR 5; ;;
+    esac
+
+    # content display format
+    case "$format" in
+	basename) printf %s "${1##*/}" ;;
+	nldel) printf %s "${1%$nl}" ;;
+	'') printf %s "$1" ;;
+    esac
+
     esc SGR
     printf '\r'
 }
@@ -150,32 +217,14 @@ arg_format() { # token
 status_line_top () {
     esc DECSC
     esc CUP 1
-    case $USER in
-        root) esc SGR 31 7 ;;
-	*) [ -n "$urgent" ] && esc SGR 31 7 || esc SGR 36 7 ;;
-    esac
-    printf '%*s\r' "$COLUMNS"
-    case $msg in
-	'') printf %s "shmenu" ;;
-	*) printf %s "$msg" ;;
-    esac
-    esc SGR
+    printf '%*s\r%s %s' "$COLUMNS" "" "($y/$1)" "$msg"
     esc DECRC
 }
 
 status_line_bottom () {
     esc DECSC
     esc CUP "$LINES"
-    case $USER in
-        root) esc SGR 31 7 ;;
-	*) [ -n "$urgent" ] && esc SGR 91 7 || esc SGR 34 7
-    esac
-    printf '%*s\r%s ' "$COLUMNS" "" "($y/$1)"
-    case $ltype in
-	'') printf %s "Menu system written in POSIX shell" ;;
-	*) printf %s "$ltype" ;;
-    esac
-    esc SGR
+    printf '%*s\r%s' "$COLUMNS" "" "$ltype"
     esc DECRC
 }
 
@@ -209,8 +258,8 @@ term_move_up() {
 
     # Restore cursor to match y2
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
-    status_line_top
-    status_line_bottom "$#"
+    status_line_top "$#"
+    status_line_bottom
 }
 
 term_move_down() {
@@ -239,8 +288,8 @@ term_move_down() {
 
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
 
-    status_line_top
-    status_line_bottom "$#"
+    status_line_top "$#"
+    status_line_bottom
 }
 
 prompt() {
@@ -263,30 +312,30 @@ prompt() {
 }
 
 search() {
-    local text="$1"
+    local content="$1"
     local IFS="$2"
     local str="$3"
-    local filter posnum lower_text lower_str i j n
+    local filter posnum lower_content lower_str i j n
 
     case $case_insense in
 	1) # case-insensitive filter
-	    # lowercase both text and str
-	    lower_text=$(printf '%s' "$text" | tr '[:upper:]' '[:lower:]')
+	    # lowercase both content and str
+	    lower_content=$(printf '%s' "$content" | tr '[:upper:]' '[:lower:]')
 	    lower_str=$(printf '%s' "$str" | tr '[:upper:]' '[:lower:]')
 
 	    # First run: match lowercase and record the number of positional parameter
-	    set -- $lower_text
+	    set -- $lower_content
 
-	    for line do
+	    for lower_line do
 		i=$((i+1))
-		case $line in
+		case $lower_line in
 		    *$lower_str*) posnum="$posnum $i" ;;
 		esac
 	    done
-	    posnum=${posnum#* }
+	    posnum=${posnum#* } # delete first space
 
 	    # Second run: match the item based on that list above
-	    set -- $text
+	    set -- $content
 
 	    for line do
 		j=$((j+1))
@@ -294,14 +343,14 @@ search() {
 		case $j in
 		    "$n")
 			filter="$filter$IFS$line"
-			posnum=${posnum#* } # delete first line
+			posnum=${posnum#* } # delete first numer
 			;;
 		esac
 	    done
 
 	    ;;
 	*) # case-sensitive filter
-	    set -- $text
+	    set -- $content
 	    for line do
 		case $line in
 		    *$str*) filter="$filter$IFS$line" ;;
@@ -359,7 +408,7 @@ key() {
 		    {
 			unset search_ind help_ind
 			IFS=$ifs
-			set -- $text
+			set -- $content
 			unset IFS
 			hist=1
 			old_reset "$@"
@@ -370,8 +419,8 @@ key() {
             /?)
 		ltype="Searching..."
                 prompt / r
-		status_line_bottom "$#"
-		search "$text" "$ifs" "$ans"
+		status_line_bottom
+		search "$content" "$ifs" "$ans"
 		local search_ind=1
 		IFS=$ifs
 		set -- $filt_out
@@ -383,7 +432,7 @@ key() {
 			;;
                 esac
 
-		old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format
+		old_save "$@"
 		y=1 y2=$top cur=$1 ltype="Search mode" msg="Search by *$ans*"
                 redraw "$@"
             ;;
@@ -402,7 +451,7 @@ key() {
 		       '? - show keybinds' \
 		       'q - quit'
 
-		old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format
+		old_save "$@"
 		unset format
                 num=1 y=1 y2=$top cur=$1 ltype= msg=keybinds token='?'
                 redraw "$@"
@@ -431,8 +480,10 @@ shmenu [OPTIONS] ([ARGS])
   -i,			Set case-insensitive search
   -n=[num],		Set numbers of line per entry
   -s=[IFS],		Set IFS
-  -t=[text],		Set text to display
-  -f=[format],		Set the format to print out text
+  -c=[content],		Set content to display
+  -f=[format],		Set the format to print out content
+  -t=[msg],		Set top status bar message
+  -b=[msg],		Set bottom status bar message
 
 format detail:
   nldel			delete last nl, equiv to "\${1%\$nl}"
@@ -449,7 +500,7 @@ main() {
     trap 'term_getsize; term_setup; y=1 y2=$top; redraw "$@"' WINCH
 
     IFS=${ifs:=$nl}
-    set -- $text
+    set -- $content
     unset IFS
 
     term_getsize
@@ -476,24 +527,23 @@ ctrl_a=$(printf '\001')
 ctrl_e=$(printf '\005')
 tilda=$(printf '\176')
 
-while getopts "n:s:t:f:uhi" result; do
+while getopts "t:b:n:s:c:f:hi" result; do
     case "${result}" in
         n) num=${OPTARG} ;;
         s) ifs=${OPTARG} ;;
-        t) text=${OPTARG} ;;
+        c) content=${OPTARG} ;;
         f) format=${OPTARG} ;;
-	u) urgent=1 ;;
 	i) case_insense=1 ;;
-
+	t) msg="${OPTARG}" ;;
+	b) ltype="${OPTARG}" ;;
 	h) usage && exit 0 ;;
     esac
 done
 
-case "$text" in
-    '') text=$(cat -u -) ;; # Accept pipe stdin
+case "$content" in
+    '') content=$(cat -u -) ;; # Accept pipe stdin
 esac
 
 num=${num:=1} # num=1 if unset
 main "$@" <&2 >/dev/tty # why it works, I don't know.
 printf '%s' "$cur" >&1
-
