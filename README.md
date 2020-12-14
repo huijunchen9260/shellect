@@ -9,6 +9,7 @@ shmenu is a menu written in POSIX shell.
 
 * [Preview](#preview)
 * [Introduction](#introduction)
+* [Limitation](#limitation)
 
 <!-- vim-markdown-toc -->
 
@@ -54,7 +55,7 @@ shmenu [OPTIONS] ([ARGS])
   -h,			Show help options
   -i,			Set case-insensitive search
   -n=[num],		Set numbers of line per entry
-  -s=[IFS],		Set IFS
+  -d=[IFS],		Set IFS
   -c=[content],		Set content to display
   -f=[format],		Set the format to print out content
   -t=[msg],		Set top status bar message
@@ -66,3 +67,15 @@ format detail:
 
   if unset or empty, then equiv to "$1"
 ```
+
+## Limitation
+
+The efficiency of shmenu is highly constraint by the total number of entries and the content that you want to display.
+
+With `bash`, as I tested, probably only numbers of 5000 is large enough to create significant lag. The command I run is `tree /directory/have/5000/subitems | shmenu` or `echo $(seq 1 5000) | shmenu`.
+
+With `dash`, the efficiency is highly depends on both directions. At the number 20000, shmenu runs fair efficiency. The command is `tree /directory/have/20000/subitems | shmenu`. With the number of 30000, the pointer will not stop if I relieve my key press. However, changing the command to `echo $(seq 1 30000) | shmenu`, in my computer, shmenu runs with fair efficiency.
+
+Comparing with `dmenu` and `fzf`, shmenu is probably extremely inefficient in terms of large numbers of entry. This is probably the limitation of an interpreting language compared to compiling language.
+
+If there's any method to improve the efficiency of shmenu, feel free to open a issue or pull request. I'll be more than happy to work with you.

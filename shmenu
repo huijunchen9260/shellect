@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # Variable explain:
 # $y: the current argument
@@ -140,9 +140,13 @@ list_print() {
 	    -*)
 		list_format "$file"
 		esc CUD
+		i=$((i + 1))
+		;;
+	    0|*)
+		break
 		;;
 	esac
-	i=$((i + 1))
+
     done
 
     esc CUP "$(( pos > y2 ? y2 : pos ))"
@@ -154,11 +158,11 @@ cur_assign(){ # assign $cur > 9
 }
 
 old_save() {
-    old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format
+    old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format old_msg=$msg old_ltype=$ltype
 }
 
 old_reset() {
-    num=$old_num y=$old_y y2=$old_y2 pos=$old_pos cur=$old_cur format=$old_format
+    num=$old_num y=$old_y y2=$old_y2 pos=$old_pos cur=$old_cur format=$old_format msg=$old_msg ltype=$old_ltype
 }
 
 list_format() {
@@ -167,7 +171,10 @@ list_format() {
     # overall display rule
     case $(( num * i - num + top )) in
 	"$y2") esc CUR 2; esc SGR 35 1; printf '>'; esc SGR 33 1; esc CUR 2 ;;
-	*) esc CUR 5; ;;
+	*)
+	    esc CUR 5
+	    esc SGR '' 2
+	    ;;
     esac
 
     # content display format
@@ -200,7 +207,10 @@ arg_format() {
     # overall display rule
     case $offset in
 	"$y") esc CUR 2; esc SGR 35 1; printf '>'; esc SGR 33 1; esc CUR 2 ;;
-	*) esc CUR 5; ;;
+	*)
+	    esc CUR 5
+	    esc SGR '' 2
+	    ;;
     esac
 
     # content display format
@@ -324,21 +334,21 @@ search() {
 	    lower_str=$(printf '%s' "$str" | tr '[:upper:]' '[:lower:]')
 
 	    # First run: match lowercase and record the number of positional parameter
+	    i=1
 	    set -- $lower_content
-
-	    for lower_line do
-		i=$((i+1))
-		case $lower_line in
+	    for line do
+		case $line in
 		    *$lower_str*) posnum="$posnum $i" ;;
 		esac
+		i=$((i+1))
 	    done
 	    posnum=${posnum#* } # delete first space
 
 	    # Second run: match the item based on that list above
 	    set -- $content
 
+	    j=1
 	    for line do
-		j=$((j+1))
 		n=${posnum%% *} # first line number
 		case $j in
 		    "$n")
@@ -346,6 +356,7 @@ search() {
 			posnum=${posnum#* } # delete first numer
 			;;
 		esac
+		j=$((j+1))
 	    done
 
 	    ;;
@@ -399,7 +410,7 @@ key() {
 
             l?|C2|"$esc") # ARROW RIGHT
 		term_reset
-		return 2
+		return
             ;;
 
             h?|D2|"$bs_char"?) # ARROW LEFT
@@ -417,9 +428,7 @@ key() {
             ;;
 
             /?)
-		ltype="Searching..."
                 prompt / r
-		status_line_bottom
 		search "$content" "$ifs" "$ans"
 		local search_ind=1
 		IFS=$ifs
@@ -479,7 +488,7 @@ shmenu [OPTIONS] ([ARGS])
   -h,			Show help options
   -i,			Set case-insensitive search
   -n=[num],		Set numbers of line per entry
-  -s=[IFS],		Set IFS
+  -d=[IFS],		Set IFS
   -c=[content],		Set content to display
   -f=[format],		Set the format to print out content
   -t=[msg],		Set top status bar message
@@ -527,10 +536,10 @@ ctrl_a=$(printf '\001')
 ctrl_e=$(printf '\005')
 tilda=$(printf '\176')
 
-while getopts "t:b:n:s:c:f:hi" result; do
+while getopts "t:b:n:d:s:c:f:hi" result; do
     case "${result}" in
         n) num=${OPTARG} ;;
-        s) ifs=${OPTARG} ;;
+        d) ifs=${OPTARG} ;;
         c) content=${OPTARG} ;;
         f) format=${OPTARG} ;;
 	i) case_insense=1 ;;
