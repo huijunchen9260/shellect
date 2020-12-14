@@ -15,7 +15,7 @@ shmenu is a menu written in POSIX shell.
 
 ## Preview
 
-[![shmenu](https://asciinema.org/a/IsWFVG2kVyQX1i0AuOlRVpvnv.png)](https://asciinema.org/a/IsWFVG2kVyQX1i0AuOlRVpvnv)
+[![shmenu](https://asciinema.org/a/Cmfl0fJzjY4x3gRGvj5muRgUB.png)](https://asciinema.org/a/Cmfl0fJzjY4x3gRGvj5muRgUB)
 
 ## Introduction
 
