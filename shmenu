@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 # Variable explain:
 # $y: the current argument
@@ -106,7 +106,7 @@ redraw() {
 
     status_line_top "$#"
     list_print "$@"
-    status_line_bottom
+    [ -n "$ltype" ] && status_line_bottom
 }
 
 
@@ -269,7 +269,7 @@ term_move_up() {
     # Restore cursor to match y2
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
     status_line_top "$#"
-    status_line_bottom
+    [ -n "$ltype" ] && status_line_bottom
 }
 
 term_move_down() {
@@ -299,7 +299,7 @@ term_move_down() {
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
 
     status_line_top "$#"
-    status_line_bottom
+    [ -n "$ltype" ] && status_line_bottom
 }
 
 prompt() {
@@ -409,8 +409,11 @@ key() {
             ;;
 
             l?|C2|"$esc") # ARROW RIGHT
-		term_reset
-		return
+		[ -n "$help_ind" ] ||
+		    {
+			term_reset
+			return
+		    }
             ;;
 
             h?|D2|"$bs_char"?) # ARROW LEFT
@@ -428,9 +431,10 @@ key() {
             ;;
 
             /?)
+		local search_ind=1
+
                 prompt / r
 		search "$content" "$ifs" "$ans"
-		local search_ind=1
 		IFS=$ifs
 		set -- $filt_out
 		unset IFS
@@ -488,7 +492,7 @@ shmenu [OPTIONS] ([ARGS])
   -h,			Show help options
   -i,			Set case-insensitive search
   -n=[num],		Set numbers of line per entry
-  -d=[IFS],		Set IFS
+  -d=[delim],		Set delimiter (IFS, internal field separator)
   -c=[content],		Set content to display
   -f=[format],		Set the format to print out content
   -t=[msg],		Set top status bar message
@@ -528,6 +532,7 @@ tab='	'
 # special key setting
 esc_c=$(printf '\033')
 bs_char=$(printf '\177')
+enter=$(printf '\000')
 ctrl_f=$(printf '\006')
 ctrl_u=$(printf '\025')
 ctrl_n=$(printf '\016')
