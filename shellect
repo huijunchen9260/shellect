@@ -375,25 +375,6 @@ search() {
 }
 
 key() {
-    # while key=$(dd ibs=1 bs=1 count=1 2>/dev/null); do
-    # [ $# -gt 5000 ] && {
-	# i=1
-	# for item do
-	    # case $(( i - 5000 )) in
-	        # -*)
-		    # neocontent="$neocontent${ifs:=$nl}$item"
-		    # i=$((i+1))
-		    # ;;
-		# *)
-		    # break
-		    # ;;
-	    # esac
-	# done
-	# neocontent=${neocontent#${ifs:=$nl}}
-	# IFS=${ifs:=$nl}
-	# set -- $neocontent
-	# unset IFS
-    # }
     while key=$(dd cbs=1 bs=1 count=1 conv=notrunc 2>/dev/null); do
 	case $key${esc:=0} in
 	    "$ctrl_u"?|~5)
@@ -536,12 +517,10 @@ main() {
     set -- $content
     unset IFS
 
-
     term_getsize
     term_setup
     y=1 y2=$top cur=$1
     redraw "$@"
-
 
     key "$@"
 
