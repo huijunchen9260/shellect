@@ -1,6 +1,6 @@
-# shmenu
+# shellect
 
-shmenu is a menu written in POSIX shell.
+shellect is a menu written in POSIX shell.
 
 ## Table of content
 
@@ -15,17 +15,17 @@ shmenu is a menu written in POSIX shell.
 
 ## Preview
 
-[![shmenu](https://asciinema.org/a/Cmfl0fJzjY4x3gRGvj5muRgUB.png)](https://asciinema.org/a/Cmfl0fJzjY4x3gRGvj5muRgUB)
+[![shellect](https://asciinema.org/a/Cmfl0fJzjY4x3gRGvj5muRgUB.png)](https://asciinema.org/a/Cmfl0fJzjY4x3gRGvj5muRgUB)
 
 ## Introduction
 
-shmenu born from my experience in developing my bibliography manager, [`shbib`](https://github.com/huijunchen9260/shbib), and I built [`shbib`](https://github.com/huijunchen9260/shbib) on the basis provided by [`shfm`](https://github.com/dylanaraps/shfm). I realized that if I do not obey the Unix philosophy and keep adding functions to [`shbib`](https://github.com/huijunchen9260/shbib), [`shbib`](https://github.com/huijunchen9260/shbib) would grow exponentially and eventually become a pain to maintain. Therefore, I isolate out shmenu as an individual menu system that just written in POSIX shell.
+shellect born from my experience in developing my bibliography manager, [`shbib`](https://github.com/huijunchen9260/shbib), and I built [`shbib`](https://github.com/huijunchen9260/shbib) on the basis provided by [`shfm`](https://github.com/dylanaraps/shfm). I realized that if I do not obey the Unix philosophy and keep adding functions to [`shbib`](https://github.com/huijunchen9260/shbib), [`shbib`](https://github.com/huijunchen9260/shbib) would grow exponentially and eventually become a pain to maintain. Therefore, I isolate out shellect as an individual menu system that just written in POSIX shell.
 
-shmenu will either accept standard input or assign the display content by `-t` option, i.e., to display all the non-hidden files and directories in your `$HOME` directory,
+shellect will either accept standard input or assign the display content by `-t` option, i.e., to display all the non-hidden files and directories in your `$HOME` directory,
 
 ```sh
-printf '%s\n' $HOME/* | shmenu # standard input
-shmenu -t "$HOME/*"	       # -t option
+printf '%s\n' $HOME/* | shellect # standard input
+shellect -t "$HOME/*"	       # -t option
 
 ```
 
@@ -50,7 +50,7 @@ Command-line option:
 ```
 Usage:
 
-shmenu [OPTIONS] ([ARGS])
+shellect [OPTIONS] ([ARGS])
 
   -h,			Show help options
   -i,			Set case-insensitive search
@@ -70,12 +70,12 @@ format detail:
 
 ## Limitation
 
-The efficiency of shmenu is highly constraint by the total number of entries and the content that you want to display.
+The efficiency of shellect is highly constraint by the total number of entries and the content that you want to display.
 
-With `bash`, as I tested, probably only numbers of 5000 is large enough to create significant lag. The command I run is `tree /directory/have/5000/subitems | shmenu` or `echo $(seq 1 5000) | shmenu`.
+With `bash`, as I tested, probably only numbers of 5000 is large enough to create significant lag. The command I run is `tree /directory/have/5000/subitems | shellect` or `echo $(seq 1 5000) | shellect`.
 
-With `dash`, the efficiency is highly depends on both directions. At the number 20000, shmenu runs fair efficiency. The command is `tree /directory/have/20000/subitems | shmenu`. With the number of 30000, the pointer will not stop if I relieve my key press. However, changing the command to `echo $(seq 1 30000) | shmenu`, in my computer, shmenu runs with fair efficiency.
+With `dash`, the efficiency is highly depends on both directions. At the number 20000, shellect runs fair efficiency. The command is `tree /directory/have/20000/subitems | shellect`. With the number of 30000, the pointer will not stop if I relieve my key press. However, changing the command to `echo $(seq 1 30000) | shellect`, in my computer, shellect runs with fair efficiency.
 
-Comparing with `dmenu` and `fzf`, shmenu is probably extremely inefficient in terms of large numbers of entry. This is probably the limitation of an interpreting language compared to compiling language.
+Comparing with `dmenu` and `fzf`, shellect is probably extremely inefficient in terms of large numbers of entry. This is probably the limitation of an interpreting language compared to compiling language.
 
-If there's any method to improve the efficiency of shmenu, feel free to open a issue or pull request. I'll be more than happy to work with you.
+If there's any method to improve the efficiency of shellect, feel free to open a issue or pull request. I'll be more than happy to work with you.

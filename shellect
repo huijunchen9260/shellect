@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env dash
 
 # Variable explain:
 # $y: the current argument
@@ -224,6 +224,7 @@ arg_format() {
     printf '\r'
 }
 
+
 status_line_top () {
     esc DECSC
     esc CUP 1
@@ -374,7 +375,26 @@ search() {
 }
 
 key() {
-    while key=$(dd ibs=1 count=1 2>/dev/null); do
+    # while key=$(dd ibs=1 bs=1 count=1 2>/dev/null); do
+    # [ $# -gt 5000 ] && {
+	# i=1
+	# for item do
+	    # case $(( i - 5000 )) in
+	        # -*)
+		    # neocontent="$neocontent${ifs:=$nl}$item"
+		    # i=$((i+1))
+		    # ;;
+		# *)
+		    # break
+		    # ;;
+	    # esac
+	# done
+	# neocontent=${neocontent#${ifs:=$nl}}
+	# IFS=${ifs:=$nl}
+	# set -- $neocontent
+	# unset IFS
+    # }
+    while key=$(dd cbs=1 bs=1 count=1 conv=notrunc 2>/dev/null); do
 	case $key${esc:=0} in
 	    "$ctrl_u"?|~5)
 		term_move_up 4 "$@"
@@ -487,7 +507,7 @@ usage () {
 cat << 	EOF
 Usage:
 
-shmenu [OPTIONS] ([ARGS])
+shellect [OPTIONS] ([ARGS])
 
   -h,			Show help options
   -i,			Set case-insensitive search
@@ -516,10 +536,12 @@ main() {
     set -- $content
     unset IFS
 
+
     term_getsize
     term_setup
     y=1 y2=$top cur=$1
     redraw "$@"
+
 
     key "$@"
 
@@ -532,7 +554,6 @@ tab='	'
 # special key setting
 esc_c=$(printf '\033')
 bs_char=$(printf '\177')
-enter=$(printf '\000')
 ctrl_f=$(printf '\006')
 ctrl_u=$(printf '\025')
 ctrl_n=$(printf '\016')
