@@ -70,7 +70,6 @@ term_setup() {
     bottom=$((LINES - 2))				# space for bottom status_line
     top=3						# space for top status_line
     fin=$(( bottom - (bottom - (top - 1)) % num ))	# bottom for content printed
-    end=$(( fin + 1 ))
 
     stty=$(stty -g)
     stty -icanon -echo
@@ -102,69 +101,11 @@ term_reset() {
     stty "$stty"
 }
 
-redraw() {
-    esc ED2
+old_save() { old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format old_msg=$msg old_ltype=$ltype old_last=$last; }
 
-    status_line_top "$#"
-    list_print "$@"
-    [ -n "$ltype" ] && status_line_bottom
-}
+old_reset() { num=$old_num y=$old_y y2=$old_y2 pos=$old_pos cur=$old_cur format=$old_format msg=$old_msg ltype=$old_ltype last=$old_last; }
 
-
-list_print() {
-    esc CUP "$top"
-
-    i=1
-    pos=$(( num * y - num + top ))
-    end=$(( fin + 1 ))
-    mid=$(( end / 4 < 5 ? 1 : end / 4 ))
-
-
-    case $hist in
-        2) # redraw after cmd run
-	    shift "$((pos >= y2 ? (pos - y2) / num : 0))"
-        ;;
-
-        1) # redraw after go back
-	    shift "$((pos >= fin ? (pos - y2) / num : 0))"
-	    unset hist
-        ;;
-
-        *) # everything else
-	    shift "$((y >= (end - top) / num ? y - (end - top) / num : 0 ))"
-        ;;
-    esac
-
-    for file do
-
-	case $(( num * i - num + top - end )) in
-	    -*)
-		list_format "$file"
-		esc CUD
-		i=$((i + 1))
-		;;
-	    0|*)
-		break
-		;;
-	esac
-
-    done
-
-    esc CUP "$(( pos > y2 ? y2 : pos ))"
-}
-
-cur_assign(){ # assign $cur > 9
-    shift "$1"
-    cur=$1
-}
-
-old_save() {
-    old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format old_msg=$msg old_ltype=$ltype
-}
-
-old_reset() {
-    num=$old_num y=$old_y y2=$old_y2 pos=$old_pos cur=$old_cur format=$old_format msg=$old_msg ltype=$old_ltype
-}
+cur_assign() { shift "$1"; cur=$1; } # assign $cur > 9
 
 input_assign() {
     local offset=$1
@@ -175,7 +116,61 @@ input_assign() {
 	save_list=$save_list${ifs:=$nl}$1
 	shift $(( $# > 0 ? 1 : 0 ))
     done
+    save_list=${save_list#${ifs:=$nl}}
     list=$save_list
+}
+
+
+redraw() {
+    pos=$(( num * y - num + top ))
+    end=$(( fin + 1 ))
+    mid=$(( end / 4 < 5 ? 1 : end / 4 ))
+    len=$(( (end - top) / num ))
+
+    case $hist in
+        2) # redraw after cmd run
+	    shift "$((pos >= y2 ? (pos - y2) / num : 0))"
+        ;;
+
+        1) # redraw after go back
+	    input_assign "$((pos >= fin ? (pos - y2) / num : 0))" "$len" "$@"
+	    unset hist
+        ;;
+
+        *) # everything else
+	    input_assign "$(( y >= len ? y - len : 0 ))" "$len" "$@"
+        ;;
+    esac
+
+    IFS=${ifs:=$nl}
+    set -- $list
+    unset IFS list
+
+    esc ED2
+
+    status_line "$last"
+    list_print "$@"
+}
+
+
+list_print() {
+    esc CUP "$top"
+
+    i=1
+
+    for file do
+
+	case $(( num * i - num + top - end )) in
+	    -*)
+		list_format "$file"
+		esc CUD
+		i=$((i + 1))
+		;;
+	esac
+
+    done
+
+    esc CUP "$(( pos > y2 ? y2 : pos ))"
 }
 
 list_format() {
@@ -202,9 +197,7 @@ list_format() {
 
 arg_print() {
     offset=$1
-
     shift "$offset"
-
     arg_format "$1"
 }
 
@@ -267,8 +260,7 @@ term_move_up() {
 
     # Restore cursor to match y2
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
-    status_line_top "$last"
-    [ -n "$ltype" ] && status_line_bottom
+    status_line "$last"
 }
 
 term_move_down() {
@@ -289,13 +281,12 @@ term_move_down() {
     y2=$(( y2 + num * move < fin - (num - 1) ? y2 + num * move : fin - (num - 1) ))
 
     # Generate list for partial input
-    input_assign "$((y - move - 1))" "$((move + 1))" "$@"
+    input_assign "$((y - move - 1 > 0 ? y - move - 1 : 0 ))" "$((move + 1))" "$@"
     IFS=${ifs:=$nl}
     set -- $list
     unset IFS list cur
 
-    for i in $(seq $((y - move)) $((y - 1))); do
-	offset=$i
+    for i in $(seq 1 $move); do
 	arg_format "$1"
 	shift 1
 	printf '\n'
@@ -306,21 +297,14 @@ term_move_down() {
 
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
 
-    status_line_top "$last"
-    [ -n "$ltype" ] && status_line_bottom
+    status_line "$last"
 }
 
-status_line_top () {
+status_line () {
     esc DECSC
     esc CUP 1
-    printf '%*s\r%s %s' "$COLUMNS" "" "($y/$1)" "$msg"
-    esc DECRC
-}
-
-status_line_bottom () {
-    esc DECSC
-    esc CUP "$LINES"
-    printf '%*s\r%s' "$COLUMNS" "" "$ltype"
+    printf '%s %s' "($y/$1)" "$msg"
+    [ -n "$ltype" ] && { esc CUP "$LINES"; printf '%s' "$ltype"; }
     esc DECRC
 }
 
@@ -435,7 +419,6 @@ main() {
 
     redraw "$@"
 
-    # while key=$(dd cbs=1 bs=1 count=1 conv=notrunc,sync,block 2>/dev/null); do
     while key=$(dd ibs=1 count=1 2>/dev/null); do
 
 	case $key${esc:=0} in
@@ -510,7 +493,7 @@ main() {
 		esac
 
 		old_save
-		y=1 y2=$top cur=$1 ltype="Search mode" msg="Search by *$ans*" token='/'
+		y=1 y2=$top cur=$1 last=$# ltype="Search mode" msg="Search by *$ans*" token='/'
 		redraw "$@"
 	    ;;
 
@@ -529,7 +512,7 @@ main() {
 
 		old_save
 		unset format
-		num=1 y=1 y2=$top cur=$1 ltype= msg=keybinds token='?'
+		num=1 y=1 y2=$top cur=$1 last=$# ltype= msg=keybinds token='?'
 		redraw "$@"
 	    ;;
 
@@ -544,7 +527,6 @@ main() {
 		    *) esc=0 ;;
 	esac
     done
-
 }
 
 nl='
