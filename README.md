@@ -21,11 +21,11 @@ shellect is a selection system written in POSIX shell.
 
 shellect born from my experience in developing my bibliography manager, [`shbib`](https://github.com/huijunchen9260/shbib), and I built [`shbib`](https://github.com/huijunchen9260/shbib) on the basis provided by [`shfm`](https://github.com/dylanaraps/shfm). I realized that if I do not obey the Unix philosophy and keep adding functions to [`shbib`](https://github.com/huijunchen9260/shbib), [`shbib`](https://github.com/huijunchen9260/shbib) would grow exponentially and eventually become a pain to maintain. Therefore, I isolate out shellect as an individual selection system that just written in POSIX shell.
 
-shellect will either accept standard input or assign the display content by `-t` option, i.e., to display all the non-hidden files and directories in your `$HOME` directory,
+shellect will either accept standard input or assign the display content by `-c` option, i.e., to display all the non-hidden files and directories in your `$HOME` directory,
 
 ```sh
 printf '%s\n' $HOME/* | shellect # standard input
-shellect -t "$HOME/*"	       # -t option
+shellect -c "$HOME/*"	       # -c option
 
 ```
 

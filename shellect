@@ -459,7 +459,7 @@ main() {
 		    '?') ;;
 		    *)
 			term_reset
-			return
+			return 0
 			;;
 		esac
 	    ;;
