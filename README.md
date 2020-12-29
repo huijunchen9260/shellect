@@ -174,7 +174,7 @@ To see more information, go to "Working with arrays" section in [Rich’s sh (PO
 
 This `while` loop is the part to detect key press.
 This `dd` command has nothing to interact with the argument array.
-However, `dd`'s efficiency will be highly affected by argument array that just pass though it.
+However, `dd`'s efficiency will be highly affected by argument array that just pass through it.
 If the total number of argument array is too high, then `dd` will become laggy when reading the key press, eventually causing the cursor movement is laggy.
 
 To resolve this limitation. I developed a technique to only feed part of the total content to the above while loop:

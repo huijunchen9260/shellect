@@ -1,4 +1,4 @@
-#!/usr/bin/env dash
+#!/usr/bin/env sh
 
 # Variable explain:
 # $y: the current argument in the whole content
@@ -84,7 +84,7 @@ input_assign() {
     local length=$2
     local save_list
     shift "$(( offset > 0 ? offset : 0 ))"; shift 2;
-    for i in $(seq $length); do
+    for i in $(seq 1 "$length"); do
 	save_list="$save_list${ifs:=$nl}$1"
 	shift $(( $# > 0 ? 1 : 0 ))
     done
@@ -207,7 +207,7 @@ term_move_up() {
     set -- $list
     unset IFS list cur
 
-    for i in $(seq 1 $move); do
+    for i in $(seq 1 "$move"); do
 	arg_print "$((move - i + 2))" "$@" # print the latter item first
 
 	case "$y2" in # adjust for upper bound
@@ -237,7 +237,7 @@ term_move_down() {
     set -- $list
     unset IFS cur
 
-    for i in $(seq 1 $move); do
+    for i in $(seq 1 "$move"); do
 	arg_format "$1"
 	shift 1
 	printf '\n'
@@ -359,9 +359,9 @@ key() {
     # Generate new list
     case $((y - move)) in
         1) y=1; yy=1; input_assign "0" "$len" "$@" ;;
-	$((last - move - 1))) y=$last; input_assign "$((y - $len))" "$len" "$@" ;;
+	$((last - move - 1))) y=$last; input_assign "$((y - len))" "$len" "$@" ;;
 	*)
-	    case $((y - $len)) in
+	    case $((y - len)) in
 	        -*) input_assign "$((yy > 1 ? y - yy : y - 1))" "$len" "$@" ;;
 		*) input_assign "$((yy > 1 ? y - len : y - 1))" "$len" "$@" ;;
 	    esac
@@ -403,12 +403,12 @@ key() {
 		esac
 
 		# Adjust move step
-		case $(( y - $last + move )) in
+		case $(( y - last + move )) in
 		    [1-9]*) move=$(($last - y)) ;;
 		esac
 
 		# Move or update list
-		case $(( yy - $len + move )) in
+		case $(( yy - len + move )) in
 		    -*|0) term_move_down "$@" ;;
 		    *) yy=1; return 0 ;;
 		esac
