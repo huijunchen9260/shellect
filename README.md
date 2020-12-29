@@ -17,7 +17,7 @@ shellect is a selection system written in POSIX shell.
 
 ## Preview
 
-[![shellect](https://asciinema.org/a/Cmfl0fJzjY4x3gRGvj5muRgUB.png)](https://asciinema.org/a/Cmfl0fJzjY4x3gRGvj5muRgUB)
+[![shellect](https://asciinema.org/a/jLJay0bFv0mqSfcnWbAWYiVwu.png)](https://asciinema.org/a/jLJay0bFv0mqSfcnWbAWYiVwu)
 
 ## Introduction
 
@@ -163,6 +163,7 @@ First, I'll define some terminologies that I'll use through the explanation:
 1. argument array: POSIX shell has no array type. However, there's actually one, and only one array in POSIX shell, i.e., the positional parameters, `$1`, `$2`, etc.
 To see more information, go to "Working with arrays" section in [Rich’s sh (POSIX shell) tricks](http://www.etalabs.net/sh_tricks.html).
 2. selection: the item in argument array that is defined in `$cur`.
+3. Length of array: access by `$#`. The length of the total content is `$last`, and the length of a list is `$len`. `$len` is set to 500 if the length of the total content, `$last`, is larger than 500.
 
 
 ```sh
@@ -204,7 +205,7 @@ main() {
 ```
 
 The following steps are to actively switch between `main` function and `key` function.
-Within the `list`, the selection stay in the `while key` loop. If the current selection ever go out of the `list`, then go back to `main` function, reload the `content` and generate new `list`, back to `while key` loop, and process again.
-That is to say, user will experience an one-time inaction when reach the boundary of `list`.
-This inaction is to renew `list` to match current position in the whole `content`.
+Within the `$list`, the selection stay in the `while key` loop. If the current selection ever go out of the `$list`, then go back to `main` function, reload the `$content` and generate new `$list`, back to `while key` loop, and process again.
+That is to say, user will experience an one-time inaction when reach the boundary of `$list`.
+This inaction is to renew `$list` to match current position in the whole `$content`.
 Press again, and the selection will move to the next item.

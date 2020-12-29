@@ -83,7 +83,7 @@ input_assign() {
     local offset=$1
     local length=$2
     local save_list
-    shift "$offset"; shift 2;
+    shift "$(( offset > 0 ? offset : 0 ))"; shift 2;
     for i in $(seq $length); do
 	save_list="$save_list${ifs:=$nl}$1"
 	shift $(( $# > 0 ? 1 : 0 ))
