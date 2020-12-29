@@ -1,7 +1,8 @@
 #!/usr/bin/env dash
 
 # Variable explain:
-# $y: the current argument
+# $y: the current argument in the whole content
+# $yy: the current argument in the list
 # $pos: the current position on argument y
 # $y2: the current position on current screen position (invert color using SGR 33 7)
 # $num: numbers of lines per argument
@@ -31,35 +32,6 @@ esc() {
         EL[0-2]) printf '%s[%sK'    "$esc_c" "${1#EL}" ;; # clear line
         IL)      printf '%s[%sL'    "$esc_c" "$2"      ;; # insert line
 	SGR)     printf '%s[%s;%sm' "$esc_c" "$2" "$3" ;; # colors ($2); attribute ($3)
-	    # Color list:
-	    # 			FG	BG
-	    # Black		30	40
-	    # Red		31	41
-	    # Green		32	42
-	    # Yellow		33	43
-	    # Blue		34	44
-	    # Magenta		35	45
-	    # Cyan		36	46
-	    # White		37	47
-	    # Bright Black 	90	100
-	    # Bright Red	91	101
-	    # Bright Green	92	102
-	    # Bright Yellow	93	103
-	    # Bright Blue	94	104
-	    # Bright Magenta	95	105
-	    # Bright Cyan	96	106
-	    # Bright White	97	107
-
-	    # Attribute list:
-	    # Reset					0/''
-	    # Bold					1
-	    # Faint					2
-	    # Italic					3
-	    # Underline					4
-	    # Slow blink				5
-	    # Swap foreground and background colors.	7
-	    # Hidden					8
-	    # Strike-through				9
 
         # xterm (since 1988, supported widely)
 	screen_alt) printf '%s[?1049%s' "$esc_c" "$2" ;; # (h: to; l: back from) alternate buffer
@@ -101,9 +73,9 @@ term_reset() {
     stty "$stty"
 }
 
-old_save() { old_num=$num old_y=$y old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format old_msg=$msg old_ltype=$ltype old_last=$last; }
+old_save() { old_num=$num old_y=$y old_yy=$yy old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format old_msg=$msg old_ltype=$ltype old_last=$last old_len=$len; }
 
-old_reset() { num=$old_num y=$old_y y2=$old_y2 pos=$old_pos cur=$old_cur format=$old_format msg=$old_msg ltype=$old_ltype last=$old_last; }
+old_reset() { num=$old_num y=$old_y yy=$old_yy y2=$old_y2 pos=$old_pos cur=$old_cur format=$old_format msg=$old_msg ltype=$old_ltype last=$old_last len=$old_len; }
 
 cur_assign() { shift "$1"; cur=$1; } # assign $cur > 9
 
@@ -113,19 +85,21 @@ input_assign() {
     local save_list
     shift "$offset"; shift 2;
     for i in $(seq $length); do
-	save_list=$save_list${ifs:=$nl}$1
+	save_list="$save_list${ifs:=$nl}$1"
 	shift $(( $# > 0 ? 1 : 0 ))
     done
-    save_list=${save_list#${ifs:=$nl}}
+    save_list="${save_list#${ifs:=$nl}}"
     list=$save_list
 }
 
 
 redraw() {
+    local list
+
     pos=$(( num * y - num + top ))
     end=$(( fin + 1 ))
     mid=$(( end / 4 < 5 ? 1 : end / 4 ))
-    len=$(( (end - top) / num ))
+    width=$(( (end - top) / num ))
 
     case $hist in
         2) # redraw after cmd run
@@ -133,18 +107,18 @@ redraw() {
         ;;
 
         1) # redraw after go back
-	    input_assign "$((pos >= fin ? (pos - y2) / num : 0))" "$len" "$@"
+	    input_assign "$((pos >= fin ? (pos - y2) / num : 0))" "$width" "$@"
 	    unset hist
         ;;
 
         *) # everything else
-	    input_assign "$(( y >= len ? y - len : 0 ))" "$len" "$@"
+	    input_assign "$(( y >= width ? y - width : 0 ))" "$width" "$@"
         ;;
     esac
 
     IFS=${ifs:=$nl}
     set -- $list
-    unset IFS list
+    unset IFS
 
     esc ED2
 
@@ -224,24 +198,11 @@ arg_format() {
 
 term_move_up() {
 
-    local fraction=$1; shift 1
-
-    case $fraction in
-        0) move=1 ;; # fraction=0, scroll up
-	*) move=$(((end - top) / (fraction * num) > 2 ? (end - top) / (fraction * num) : 2)) ;; # fraction>0, page up
-    esac
-
-    case $y in
-	-*|0|1) return ;;
-    esac
-    case $((y - 1 - move)) in
-	-*|0) move=$((y - 1)) ;;
-    esac
-
-    y=$((y - move)) pos=$(( num * y - num + top ))
+    y=$(( y - move )) yy=$(( yy - move ))
+    pos=$(( num * y - num + top ))
 
     # Generate list for partial input
-    input_assign "$((y - 1))" "$((move + 1))" "$@"
+    input_assign "$((yy - 1))" "$((move + 1))" "$@"
     IFS=${ifs:=$nl}
     set -- $list
     unset IFS list cur
@@ -260,31 +221,21 @@ term_move_up() {
 
     # Restore cursor to match y2
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
+
     status_line "$last"
 }
 
 term_move_down() {
 
-    local fraction=$1; shift 1
-
-    case $fraction in
-        0) move=1 ;; # fraction=0, scroll down
-	*) move=$(((end - top) / (fraction * num) > 2 ? (end - top) / (fraction * num) : 2)) ;; # fraction>0, page down
-    esac
-
-    case $(( y - $# + move )) in
-	[1-9]*) move=$(($# - y)) ;;
-    esac
-
-    y=$(( y + move ))
+    y=$(( y + move )) yy=$(( yy + move ))
     pos=$(( num * y - num + top ))
     y2=$(( y2 + num * move < fin - (num - 1) ? y2 + num * move : fin - (num - 1) ))
 
     # Generate list for partial input
-    input_assign "$((y - move - 1 > 0 ? y - move - 1 : 0 ))" "$((move + 1))" "$@"
+    input_assign "$((yy - move - 1))" "$((move + 1))" "$@"
     IFS=${ifs:=$nl}
     set -- $list
-    unset IFS list cur
+    unset IFS cur
 
     for i in $(seq 1 $move); do
 	arg_format "$1"
@@ -303,8 +254,8 @@ term_move_down() {
 status_line () {
     esc DECSC
     esc CUP 1
-    printf '%s %s' "($y/$1)" "$msg"
-    [ -n "$ltype" ] && { esc CUP "$LINES"; printf '%s' "$ltype"; }
+    esc EL2; printf '%s %s' "($y/$1)" "$msg"
+    [ -n "$ltype" ] && { esc CUP "$LINES"; esc EL2; printf '%s' "$ltype"; }
     esc DECRC
 }
 
@@ -403,39 +354,94 @@ format detail:
 EOF
 }
 
-main() {
+key() {
 
-    trap 'term_reset' INT
-    trap 'term_getsize; term_setup; y=1 y2=$top; redraw "$@"' WINCH
-
-    term_getsize
-    term_setup
-    y=1 y2=$top cur=$1
+    # Generate new list
+    case $((y - move)) in
+        1) y=1; yy=1; input_assign "0" "$len" "$@" ;;
+	$((last - move - 1))) y=$last; input_assign "$((y - $len))" "$len" "$@" ;;
+	*)
+	    case $((y - $len)) in
+	        -*) input_assign "$((yy > 1 ? y - yy : y - 1))" "$len" "$@" ;;
+		*) input_assign "$((yy > 1 ? y - len : y - 1))" "$len" "$@" ;;
+	    esac
+    esac
 
     IFS=${ifs:=$nl}
-    set -- $content
+    set -- $list
     unset IFS
-    last=$#
-
-    redraw "$@"
 
     while key=$(dd ibs=1 count=1 2>/dev/null); do
 
 	case $key${esc:=0} in
 	    "$ctrl_u"?|~5)
-		term_move_up 4 "$@"
+		move=$(((end - top) / (4 * num) > 2 ? (end - top) / (4 * num) : 2))
+
+		# Terminal condition
+		case $y in
+		    -*|0|1) continue ;;
+		esac
+
+		# Adjust move step
+		case $((y - move - 1)) in
+		    -*|0) move=$((y - 1)) ;;
+		esac
+
+		# Move or update list
+		case $(( yy - move )) in
+		    -*|0) yy=$(( y > len ? len : y )); return 0 ;;
+		    *) term_move_up "$@" ;;
+		esac
 	    ;;
 
 	    "$ctrl_f"?|~6)
-		term_move_down 4 "$@"
+		move=$(((end - top) / (4 * num) > 2 ? (end - top) / (4 * num) : 2))
+
+		# Terminal condition
+		case $y in
+		    $last) continue ;;
+		esac
+
+		# Adjust move step
+		case $(( y - $last + move )) in
+		    [1-9]*) move=$(($last - y)) ;;
+		esac
+
+		# Move or update list
+		case $(( yy - $len + move )) in
+		    -*|0) term_move_down "$@" ;;
+		    *) yy=1; return 0 ;;
+		esac
 	    ;;
 
 	    k?|A2|"$ctrl_p"?)
-		term_move_up 0 "$@"
+		move=1
+
+		# Terminal condition
+		case $y in
+		    -*|0|1) continue ;;
+		esac
+
+		# Move or update list
+		case $(( yy - move )) in
+		    -*|0) yy=$len; return 0 ;;
+		    *) term_move_up "$@" ;;
+		esac
 	    ;;
 
 	    j?|B2|"$ctrl_n"?)
-		term_move_down 0 "$@"
+		move=1
+
+		# Terminal condition
+		case $y in
+		    $last) continue ;;
+		esac
+
+		# Move or update list
+		case $(( yy - $len + move )) in
+		    -*|0) term_move_down "$@" ;;
+		    *) yy=1; return 0 ;;
+		esac
 	    ;;
 
 	    g?|H2|"$ctrl_a"?)
@@ -443,15 +449,46 @@ main() {
 		    1) continue ;;
 		esac
 
-		y=1 y2=$top cur=$1
+		case $token in
+		    '/')
+			IFS=${ifs:=$nl}
+			set -- $filt_out
+			unset IFS
+			;;
+		    '')
+			IFS=${ifs:=$nl}
+			set -- $content
+			unset IFS
+		esac
+
+		y=1 yy=1 y2=$top cur=$1
 		redraw "$@"
+		return 0
 	    ;;
 
 	    G?|F2|"$ctrl_e"?)
-		y=$# pos=$(( num * y - num + top ))
+		case $y in
+		    $last) continue ;;
+		esac
+
+		case $token in
+		    '/')
+			IFS=${ifs:=$nl}
+			set -- $filt_out
+			unset IFS
+			;;
+		    '')
+			IFS=${ifs:=$nl}
+			set -- $content
+			unset IFS
+		esac
+
+		y=$last yy=$len pos=$(( num * y - num + top ))
 		y2=$(( pos < fin - (num - 1) ? pos : fin - (num - 1) ))
+
 		cur_assign "$y" "$@"
 		redraw "$@"
+		return 0
 	    ;;
 
 	    l?|C2|"$esc") # ARROW RIGHT
@@ -459,7 +496,7 @@ main() {
 		    '?') ;;
 		    *)
 			term_reset
-			return 0
+			return 1
 			;;
 		esac
 	    ;;
@@ -469,12 +506,13 @@ main() {
 		case $token in
 		    '?'|'/')
 			unset token
-			IFS=$ifs
+			old_reset
+			IFS=${ifs:=$nl}
 			set -- $content
 			unset IFS
-			hist=1
-			old_reset
+			y=1 yy=1 y2=$top cur=$1
 			redraw "$@"
+			return 0
 			;;
 		esac
 	    ;;
@@ -482,7 +520,7 @@ main() {
 	    /?)
 		prompt / r
 		search "$content" "$ifs" "$ans"
-		IFS=$ifs
+		IFS=${ifs:=$nl}
 		set -- $filt_out
 		unset IFS
 		case $# in
@@ -493,8 +531,10 @@ main() {
 		esac
 
 		old_save
-		y=1 y2=$top cur=$1 last=$# ltype="Search mode" msg="Search by *$ans*" token='/'
+		y=1 yy=1 y2=$top cur=$1 last=$# ltype="Search mode" msg="Search by *$ans*" token='/'
+		len=$(($# > 500 ? 500 : $#))
 		redraw "$@"
+		return 0
 	    ;;
 
 	    \??)
@@ -512,7 +552,7 @@ main() {
 
 		old_save
 		unset format
-		num=1 y=1 y2=$top cur=$1 last=$# ltype= msg=keybinds token='?'
+		num=1 y=1 yy=1 y2=$top cur=$1 last=$# ltype= msg=keybinds token='?'
 		redraw "$@"
 	    ;;
 
@@ -526,6 +566,39 @@ main() {
 		   6?) esc=6 ;; # PageDown
 		    *) esc=0 ;;
 	esac
+    done
+}
+
+main() {
+
+    trap 'term_reset' INT
+    trap 'term_getsize; term_setup; y=1 y2=$top; redraw "$@"' WINCH
+
+    term_getsize
+    term_setup
+    y=1 yy=1 y2=$top cur=$1
+
+    IFS=${ifs:=$nl}
+    set -- $content
+    unset IFS
+    last=$#
+    len=$(($# > 500 ? 500 : $#))
+
+    redraw "$@"
+
+    while [ $? -eq 0 ]; do
+	case $token in
+	    '/')
+		IFS=$ifs
+		set -- $filt_out
+		unset IFS
+		;;
+	    '')
+		IFS=${ifs:=$nl}
+		set -- $content
+		unset IFS
+	esac
+	key "$@"
     done
 }
 
