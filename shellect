@@ -14,6 +14,7 @@
 # Reference for color: https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_sequences
 # Reference for vt100: https://vt100.net/docs/vt510-rm/contents.html
 # Reference for escape sequence: https://github.com/dylanaraps/pure-sh-bible#escape-sequences
+
 esc() {
     case $1 in
         # vt100 (IL is vt102) (DECTCEM is vt520)
@@ -73,11 +74,9 @@ term_reset() {
     stty "$stty"
 }
 
-old_save() { old_num=$num old_y=$y old_yy=$yy old_y2=$y2 old_pos=$pos old_cur=$cur old_format=$format old_msg=$msg old_ltype=$ltype old_last=$last old_len=$len; }
+old_save() { old_num=$num old_y=$y old_yy=$yy old_y2=$y2 old_pos=$pos old_format=$format old_msg=$msg old_ltype=$ltype old_last=$last old_len=$len; }
 
-old_reset() { num=$old_num y=$old_y yy=$old_yy y2=$old_y2 pos=$old_pos cur=$old_cur format=$old_format msg=$old_msg ltype=$old_ltype last=$old_last len=$old_len; }
-
-cur_assign() { shift "$1"; cur=$1; } # assign $cur > 9
+old_reset() { num=$old_num y=$old_y yy=$old_yy y2=$old_y2 pos=$old_pos format=$old_format msg=$old_msg ltype=$old_ltype last=$old_last len=$old_len; }
 
 input_assign() {
     offset=$1
@@ -103,25 +102,12 @@ redraw() {
 
     pos=$(( num * y - num + top ))
     end=$(( fin + 1 ))
-    mid=$(( end / 4 < 5 ? 1 : end / 4 ))
     width=$(( (end - top) / num ))
 
-    case $hist in
-        2) # redraw after cmd run
-	    shift "$((pos >= y2 ? (pos - y2) / num : 0))"
-        ;;
-
-        1) # redraw after go back
-	    input_assign "$((pos >= fin ? (pos - y2) / num : 0))" "$width" "$@"
-	    unset hist
-        ;;
-
-        *) # everything else
-	    input_assign "$(( y >= width ? y - width : 0 ))" "$width" "$@"
-        ;;
-    esac
+    input_assign "$(( y >= width ? y - width : 0 ))" "$width" "$@"
 
     IFS=${ifs:=$nl}
+    # shellcheck disable=2086
     set -- $list
     unset IFS
 
@@ -137,13 +123,20 @@ redraw() {
 list_print() {
     esc CUP "$top"
 
+    unset cur
+
     i=1
 
     for file do
 
+	case $(( num * i - num + top )) in
+	    "$y2") cur=$file; save_cur=$file ;;
+	    *) cur= ;;
+	esac
+
 	case $(( num * i - num + top - end )) in
 	    -*)
-		list_format "$file"
+		arg_format "$file"
 		esc CUD
 		i=$((i + 1))
 		;;
@@ -153,30 +146,13 @@ list_print() {
     done
 
     esc CUP "$(( pos > y2 ? y2 : pos ))"
-}
 
-list_format() {
-    esc EL0
-
-    # overall display rule
-    case $(( num * i - num + top )) in
-	"$y2") esc CUR 2; esc SGR 35 1; printf '>'; esc SGR 33 1; esc CUR 2 ;;
-	*) esc CUR 5; esc SGR '' 2 ;;
-    esac
-
-    # content display format
-    case "$format" in
-	basename) printf '%s\r' "${1##*/}" ;;
-	nldel) printf '%s\r' "${1%$nl}" ;;
-	'') printf '%s\r' "$1" ;;
-    esac
-
-    esc SGR
+    cur=$save_cur
+    unset save_cur
 }
 
 arg_print() {
-    offset=$1
-    shift "$offset"
+    shift "$1"
     arg_format "$1"
 }
 
@@ -207,18 +183,19 @@ term_move_up() {
     pos=$(( num * y - num + top ))
 
     # Generate list for partial input
-    input_assign "$((yy - 1))" "$((move + 1))" "$@"
+    input_assign "$(( yy - 1 ))" "$(( move + 1 ))" "$@"
     IFS=${ifs:=$nl}
+    # shellcheck disable=2086
     set -- $list
     unset IFS list cur
 
     i=1
     while [ "$i" -le "$move" ] ; do
-	arg_print "$((move - i + 2))" "$@" # print the latter item first
+	arg_print "$(( move - i + 2 ))" "$@" # print the latter item first
 
 	case "$y2" in # adjust for upper bound
-	    $top) [ $num -gt 1 ] && esc CUU $((num - 1)); esc IL "$num" ;;
-	    *) esc CUU "$((num * 2 - 1))"; y2=$(( y2 > top ? y2 - num : top )) ;;
+	    "$top") [ "$num" -gt 1 ] && esc CUU $(( num - 1 )); esc IL "$num" ;;
+	    *) esc CUU "$(( num * 2 - 1 ))"; y2=$(( y2 > top ? y2 - num : top )) ;;
 	esac
 
 	i=$(( i + 1 ))
@@ -229,7 +206,7 @@ term_move_up() {
     arg_format "$1"
 
     # Restore cursor to match y2
-    [ $num -gt 1 ] && esc CUU "$((num - 1))"
+    [ "$num" -gt 1 ] && esc CUU "$(( num - 1 ))"
 
     status_line "$last"
 
@@ -243,8 +220,9 @@ term_move_down() {
     y2=$(( y2 + num * move < fin - (num - 1) ? y2 + num * move : fin - (num - 1) ))
 
     # Generate list for partial input
-    input_assign "$((yy - move - 1))" "$((move + 1))" "$@"
+    input_assign "$(( yy - move - 1 ))" "$(( move + 1 ))" "$@"
     IFS=${ifs:=$nl}
+    # shellcheck disable=2086
     set -- $list
     unset IFS cur
 
@@ -254,14 +232,14 @@ term_move_down() {
 	shift 1
 	printf '\n'
 
-	i=$((i + 1))
+	i=$(( i + 1 ))
     done
 
     offset=$y
     cur=$1
     arg_format "$1"
 
-    [ $num -gt 1 ] && esc CUU "$((num - 1))"
+    [ "$num" -gt 1 ] && esc CUU "$(( num - 1 ))"
 
     status_line "$last"
 
@@ -308,6 +286,7 @@ search() {
 
 	    # First run: match lowercase and record the number of positional parameter
 	    i=1
+	    # shellcheck disable=2086
 	    set -- $lower_list
 	    for line do
 		case $line in
@@ -318,6 +297,7 @@ search() {
 	    posnum=${posnum#* } # delete first space
 
 	    # Second run: match the item based on posnum above
+	    # shellcheck disable=2086
 	    set -- $list
 
 	    j=1
@@ -334,6 +314,7 @@ search() {
 
 	    ;;
 	*) # case-sensitive filter
+	    # shellcheck disable=2086
 	    set -- $list
 	    for line do
 		case $line in
@@ -375,17 +356,18 @@ EOF
 key() {
 
     # Generate new list
-    case $((y - move)) in
+    case $(( y - move )) in
         1) y=1; yy=1; input_assign "0" "$len" "$@" ;;
-	$((last - move - 1))) y=$last; input_assign "$((y - len))" "$len" "$@" ;;
+	$(( last - move - 1 ))) y=$last; input_assign "$(( y - len ))" "$len" "$@" ;;
 	*)
-	    case $((y - len)) in
-	        -*) input_assign "$((yy > 1 ? y - yy : y - 1))" "$len" "$@" ;;
-		*) input_assign "$((yy > 1 ? y - len : y - 1))" "$len" "$@" ;;
+	    case $(( y - len )) in
+	        -*) input_assign "$(( yy > 1 ? y - yy : y - 1 ))" "$len" "$@" ;;
+		*) input_assign "$(( yy > 1 ? y - len : y - 1 ))" "$len" "$@" ;;
 	    esac
     esac
 
     IFS=${ifs:=$nl}
+    # shellcheck disable=2086
     set -- $list
     unset IFS
 
@@ -393,7 +375,7 @@ key() {
 
 	case $key${esc:=0} in
 	    "$ctrl_u"?|~5)
-		move=$(((end - top) / (4 * num) > 2 ? (end - top) / (4 * num) : 2))
+		move=$(( width / 4 > 2 ? width / 4 : 2 ))
 
 		# Terminal condition
 		case $y in
@@ -401,8 +383,8 @@ key() {
 		esac
 
 		# Adjust move step
-		case $((y - move - 1)) in
-		    -*|0) move=$((y - 1)) ;;
+		case $(( y - move - 1 )) in
+		    -*|0) move=$(( y - 1 )) ;;
 		esac
 
 		# Move or update list
@@ -413,16 +395,16 @@ key() {
 	    ;;
 
 	    "$ctrl_f"?|~6)
-		move=$(((end - top) / (4 * num) > 2 ? (end - top) / (4 * num) : 2))
+		move=$(( width / 4 > 2 ? width / 4 : 2 ))
 
 		# Terminal condition
 		case $y in
-		    $last) continue ;;
+		    "$last") continue ;;
 		esac
 
 		# Adjust move step
 		case $(( y - last + move )) in
-		    [1-9]*) move=$(($last - y)) ;;
+		    [1-9]*) move=$(( last - y )) ;;
 		esac
 
 		# Move or update list
@@ -452,11 +434,11 @@ key() {
 
 		# Terminal condition
 		case $y in
-		    $last) continue ;;
+		    "$last") continue ;;
 		esac
 
 		# Move or update list
-		case $(( yy - $len + move )) in
+		case $(( yy - len + move )) in
 		    -*|0) term_move_down "$@" ;;
 		    *) yy=1; return 0 ;;
 		esac
@@ -470,33 +452,37 @@ key() {
 		case $token in
 		    '/')
 			IFS=${ifs:=$nl}
+			# shellcheck disable=2086
 			set -- $filt_out
 			unset IFS
 			;;
 		    '')
 			IFS=${ifs:=$nl}
+			# shellcheck disable=2086
 			set -- $content
 			unset IFS
 		esac
 
-		y=1 yy=1 y2=$top cur=$1
+		y=1 yy=1 y2=$top
 		redraw "$@"
 		return 0
 	    ;;
 
 	    G?|F2|"$ctrl_e"?)
 		case $y in
-		    $last) continue ;;
+		    "$last") continue ;;
 		esac
 
 		case $token in
 		    '/')
 			IFS=${ifs:=$nl}
+			# shellcheck disable=2086
 			set -- $filt_out
 			unset IFS
 			;;
 		    '')
 			IFS=${ifs:=$nl}
+			# shellcheck disable=2086
 			set -- $content
 			unset IFS
 		esac
@@ -504,7 +490,7 @@ key() {
 		y=$last yy=$len pos=$(( num * y - num + top ))
 		y2=$(( pos < fin - (num - 1) ? pos : fin - (num - 1) ))
 
-		cur_assign "$y" "$@"
+		# cur_assign "$y" "$@"
 		redraw "$@"
 		return 0
 	    ;;
@@ -526,9 +512,10 @@ key() {
 			unset token
 			old_reset
 			IFS=${ifs:=$nl}
+			# shellcheck disable=2086
 			set -- $content
 			unset IFS
-			y=1 yy=1 y2=$top cur=$1
+			y=1 yy=1 y2=$top
 			redraw "$@"
 			return 0
 			;;
@@ -539,6 +526,7 @@ key() {
 		prompt / r
 		search "$content" "$ifs" "$ans"
 		IFS=${ifs:=$nl}
+		# shellcheck disable=2086
 		set -- $filt_out
 		unset IFS
 		case $# in
@@ -549,8 +537,8 @@ key() {
 		esac
 
 		old_save
-		y=1 yy=1 y2=$top cur=$1 last=$# ltype="Search mode" msg="Search by *$ans*" token='/'
-		len=$(($# > 500 ? 500 : $#))
+		y=1; yy=1; y2=$top; last=$#; ltype="Search mode"; msg="Search by *$ans*"; token='/';
+		len=$(( $# > 500 ? 500 : $# ))
 		redraw "$@"
 		return 0
 	    ;;
@@ -570,7 +558,7 @@ key() {
 
 		old_save
 		unset format
-		num=1 y=1 yy=1 y2=$top cur=$1 last=$# ltype= msg=keybinds token='?'
+		num=1; y=1; yy=1; y2=$top; last=$#; ltype=;msg=keybinds; token='?';
 		redraw "$@"
 	    ;;
 
@@ -594,25 +582,29 @@ main() {
 
     term_getsize
     term_setup
-    y=1 yy=1 y2=$top cur=$1
+    y=1 yy=1 y2=$top
 
     IFS=${ifs:=$nl}
+    # shellcheck disable=2086
     set -- $content
     unset IFS
     last=$#
-    len=$(($# > 500 ? 500 : $#))
+    len=$(( $# > 500 ? 500 : $# ))
 
     redraw "$@"
 
+    # shellcheck disable=2181
     while [ $? -eq 0 ]; do
 	case $token in
 	    '/')
 		IFS=$ifs
+		# shellcheck disable=2086
 		set -- $filt_out
 		unset IFS
 		;;
 	    '')
 		IFS=${ifs:=$nl}
+		# shellcheck disable=2086
 		set -- $content
 		unset IFS
 	esac
@@ -622,7 +614,6 @@ main() {
 
 nl='
 '
-tab='	'
 
 # special key setting
 esc_c=$(printf '\033')
@@ -633,9 +624,8 @@ ctrl_n=$(printf '\016')
 ctrl_p=$(printf '\020')
 ctrl_a=$(printf '\001')
 ctrl_e=$(printf '\005')
-tilda=$(printf '\176')
 
-while getopts "t:b:n:d:s:c:f:hi" result; do
+while getopts "t:b:n:d:c:f:hi" result; do
     case "${result}" in
         n) num=${OPTARG} ;;
         d) ifs=${OPTARG} ;;
@@ -645,6 +635,7 @@ while getopts "t:b:n:d:s:c:f:hi" result; do
 	t) msg="${OPTARG}" ;;
 	b) ltype="${OPTARG}" ;;
 	h) usage && exit 0 ;;
+	*) printf 'Invalid argument' && exit 0 ;;
     esac
 done
 
