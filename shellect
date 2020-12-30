@@ -80,21 +80,26 @@ old_reset() { num=$old_num y=$old_y yy=$old_yy y2=$old_y2 pos=$old_pos cur=$old_
 cur_assign() { shift "$1"; cur=$1; } # assign $cur > 9
 
 input_assign() {
-    local offset=$1
-    local length=$2
-    local save_list
+    offset=$1
+    length=$2
+
     shift "$(( offset > 0 ? offset : 0 ))"; shift 2;
-    for i in $(seq 1 "$length"); do
+
+    i=1
+    while [ "$i" -le "$length" ]; do
 	save_list="$save_list${ifs:=$nl}$1"
 	shift $(( $# > 0 ? 1 : 0 ))
+	i=$(( i + 1 ))
     done
+
     save_list="${save_list#${ifs:=$nl}}"
     list=$save_list
+
+    unset i offset length save_list
 }
 
 
 redraw() {
-    local list
 
     pos=$(( num * y - num + top ))
     end=$(( fin + 1 ))
@@ -124,6 +129,8 @@ redraw() {
 
     status_line "$last"
     list_print "$@"
+
+    unset list
 }
 
 
@@ -140,6 +147,7 @@ list_print() {
 		esc CUD
 		i=$((i + 1))
 		;;
+	    0|*) break ;;
 	esac
 
     done
@@ -153,10 +161,7 @@ list_format() {
     # overall display rule
     case $(( num * i - num + top )) in
 	"$y2") esc CUR 2; esc SGR 35 1; printf '>'; esc SGR 33 1; esc CUR 2 ;;
-	*)
-	    esc CUR 5
-	    esc SGR '' 2
-	    ;;
+	*) esc CUR 5; esc SGR '' 2 ;;
     esac
 
     # content display format
@@ -207,14 +212,18 @@ term_move_up() {
     set -- $list
     unset IFS list cur
 
-    for i in $(seq 1 "$move"); do
+    i=1
+    while [ "$i" -le "$move" ] ; do
 	arg_print "$((move - i + 2))" "$@" # print the latter item first
 
 	case "$y2" in # adjust for upper bound
 	    $top) [ $num -gt 1 ] && esc CUU $((num - 1)); esc IL "$num" ;;
 	    *) esc CUU "$((num * 2 - 1))"; y2=$(( y2 > top ? y2 - num : top )) ;;
 	esac
+
+	i=$(( i + 1 ))
     done
+
     offset=$y
     cur=$1
     arg_format "$1"
@@ -223,6 +232,8 @@ term_move_up() {
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
 
     status_line "$last"
+
+    unset i offset
 }
 
 term_move_down() {
@@ -237,11 +248,15 @@ term_move_down() {
     set -- $list
     unset IFS cur
 
-    for i in $(seq 1 "$move"); do
+    i=1
+    while [ "$i" -le "$move" ] ; do
 	arg_format "$1"
 	shift 1
 	printf '\n'
+
+	i=$((i + 1))
     done
+
     offset=$y
     cur=$1
     arg_format "$1"
@@ -249,6 +264,8 @@ term_move_down() {
     [ $num -gt 1 ] && esc CUU "$((num - 1))"
 
     status_line "$last"
+
+    unset i offset
 }
 
 status_line () {
@@ -279,30 +296,29 @@ prompt() {
 }
 
 search() {
-    local content="$1"
-    local IFS="$2"
-    local str="$3"
-    local filter posnum lower_content lower_str i j n
+    list="$1"
+    IFS="$2"
+    str="$3"
 
     case $case_insense in
 	1) # case-insensitive filter
 	    # lowercase both content and str
-	    lower_content=$(printf '%s' "$content" | tr '[:upper:]' '[:lower:]')
+	    lower_list=$(printf '%s' "$list" | tr '[:upper:]' '[:lower:]')
 	    lower_str=$(printf '%s' "$str" | tr '[:upper:]' '[:lower:]')
 
 	    # First run: match lowercase and record the number of positional parameter
 	    i=1
-	    set -- $lower_content
+	    set -- $lower_list
 	    for line do
 		case $line in
 		    *$lower_str*) posnum="$posnum $i" ;;
 		esac
-		i=$((i+1))
+		i=$(( i + 1 ))
 	    done
 	    posnum=${posnum#* } # delete first space
 
-	    # Second run: match the item based on that list above
-	    set -- $content
+	    # Second run: match the item based on posnum above
+	    set -- $list
 
 	    j=1
 	    for line do
@@ -313,12 +329,12 @@ search() {
 			posnum=${posnum#* } # delete first numer
 			;;
 		esac
-		j=$((j+1))
+		j=$(( j + 1 ))
 	    done
 
 	    ;;
 	*) # case-sensitive filter
-	    set -- $content
+	    set -- $list
 	    for line do
 		case $line in
 		    *$str*) filter="$filter$IFS$line" ;;
@@ -328,6 +344,8 @@ search() {
     esac
 
     filt_out=${filter#*$IFS}
+
+    unset list IFS str filter posnum lower_list lower_str i j n
 }
 
 usage () {
