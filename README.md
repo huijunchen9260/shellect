@@ -56,18 +56,19 @@ shellect [OPTIONS] ([ARGS])
 
   -h,			Show help options
   -i,			Set case-insensitive search
+  -l,			Set live-search
   -n=[num],		Set numbers of line per entry
-  -d=[IFS],		Set IFS
+  -d=[delim],		Set delimiter (IFS, internal field separator)
   -c=[content],		Set content to display
   -f=[format],		Set the format to print out content
   -t=[msg],		Set top status bar message
   -b=[msg],		Set bottom status bar message
 
 format detail:
-  nldel			delete last nl, equiv to "${1%$nl}"
-  basename		only print basename, equiv to "${1##*/}" ;;
+  nldel			delete last nl, equiv to "\${1%\$nl}"
+  basename		only print basename, equiv to "\${1##*/}" ;;
 
-  if unset or empty, then equiv to "$1"
+  if unset or empty, then equiv to "\$1"
 ```
 
 ## Implementation Details
