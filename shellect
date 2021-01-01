@@ -275,8 +275,7 @@ prompt() {
 }
 
 tab_complete() {
-    count=$(( count + 1 <= $# ? count + 1 : 1 ))
-    shift "$(( count - 1 > 0 ? count - 1 : 0  ))"
+    shift "$(( count - 1 > 0 ? count - 1 : 0 ))"
     ans=$1
 }
 
@@ -340,6 +339,7 @@ search() {
 
 	    s=1
 
+	    # shellcheck disable=2086
 	    set -- $search_list
 	    for line do
 		case $line in
@@ -551,12 +551,12 @@ key() {
 			1)
 			    token='l'
 			    prompt "/$ans" l
-			    case $press in
-				''|"$esc_c")
-				    ltype="Search mode"
+			    case $press${esc:=0} in
+				''?) # Enter
 				    case $cur in
 				        'no result') continue ;;
 					*)
+					    ltype="Search mode"
 					    token='/'
 					    case $# in
 						1) # only one result, directly output it
@@ -567,21 +567,70 @@ key() {
 					    ;;
 				    esac
 				    ;;
-				"$bs_char")
+				"$bs_char"?) # Backspace
 				    [ -n "$ans" ] && ans=${ans%%?}
 				    count=0
 				    unset complist
 				    ;;
-				"$tab") # tab complete
-				    [ "$count" -eq 0 ] && complist=$filt_out
-				    IFS=${ifs:=$nl}
-				    # shellcheck disable=2086
-				    set -- $complist
-				    unset IFS
-				    tab_complete "$@"
+				"$tab"?) # Tab
+				    case $count in
+				        0) # First run, record $#
+					    complist=$filt_out
+					    IFS=${ifs:=$nl}
+					    # shellcheck disable=2086
+					    set -- $complist
+					    unset IFS
+					    tot=$#
+					    count=$(( count + 1 <= $# ? count + 1 : $# ))
+					    tab_complete "$@"
+					    ;;
+					*) # Other run, compare count and $#
+					    case $(( count - tot )) in
+					        -*)
+						    IFS=${ifs:=$nl}
+						    # shellcheck disable=2086
+						    set -- $complist
+						    unset IFS
+						    count=$(( count + 1 <= $# ? count + 1 : $# ))
+						    tab_complete "$@"
+						    ;;
+						*) continue ;;
+					    esac
+					    ;;
+				    esac
 				    ;;
-				[[:cntrl:]]) continue ;;
-				*)
+				Z2) # Shift-Tab
+				    case $count in
+				        0)
+					    complist=$filt_out
+					    IFS=${ifs:=$nl}
+					    # shellcheck disable=2086
+					    set -- $complist
+					    unset IFS
+					    count=$(( count - 1 >= 1 ? count - 1 : 1 ))
+					    tab_complete "$@"
+					    esc=0
+					    ;;
+					*)
+					    case $(( count - 1 )) in
+					        -*|0) esc=0; continue ;;
+						*)
+						    IFS=${ifs:=$nl}
+						    # shellcheck disable=2086
+						    set -- $complist
+						    unset IFS
+						    count=$(( count - 1 >= 1 ? count - 1 : 1 ))
+						    tab_complete "$@"
+						    esc=0
+						    ;;
+					    esac
+					    ;;
+				    esac
+				    ;;
+				"$esc_c"*) esc=1; continue ;;
+				'[1') esc=2; continue ;;
+				[[:cntrl:]]?) continue ;; # Do not accept control char
+				*0) # Others
 				    ans="$ans$press"
 				    count=0
 				    unset complist
@@ -596,7 +645,7 @@ key() {
 		    set -- $filt_out
 		    unset IFS
 
-		    y=1; yy=1; y2=$top; msg="Search by *$ans*";
+		    y=1; yy=1; y2=$top; msg="Search by *$ans*; count=$count; n=$tot; esc=$esc";
 
 		    case $# in
 		        0) num=1; set -- 'no result' ;;
@@ -705,6 +754,13 @@ format detail:
 
   if unset or empty, then equiv to "\$1"
 
+live-search detail:
+  Enter 		confirm
+  Backspace 		delete previous character
+  Tab 			Tab-completion forward
+  Shift-Tab		Tab-completion backward
+  control char		ignore
+  others		print out
 EOF
 }
 

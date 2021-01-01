@@ -69,6 +69,14 @@ format detail:
   basename		only print basename, equiv to "\${1##*/}" ;;
 
   if unset or empty, then equiv to "\$1"
+
+live-search detail:
+  Enter 		confirm
+  Backspace 		delete previous character
+  Tab 			Tab-completion forward
+  Shift-Tab		Tab-completion backward
+  control char		ignore
+  others		print out
 ```
 
 ## Implementation Details
