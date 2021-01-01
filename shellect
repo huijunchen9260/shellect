@@ -1,4 +1,4 @@
-#!/usr/bin/env dash
+#!/usr/bin/env sh
 
 # Variable explain:
 # $y: the current argument in the whole content
@@ -281,23 +281,34 @@ tab_complete() {
 }
 
 search() {
-    list="$1"
+    search_list="$1"
     IFS="$2"
     str="$3"
 
     case $case_insense in
 	1) # case-insensitive filter
-	    # lowercase both content and str
-	    lower_list=$(printf '%s' "$list" | tr '[:upper:]' '[:lower:]')
+
+	    # lowercase both search_list and str
+	    lower_search_list=$(printf '%s' "$search_list" | tr '[:upper:]' '[:lower:]')
 	    lower_str=$(printf '%s' "$str" | tr '[:upper:]' '[:lower:]')
 
 	    # First run: match lowercase and record the number of positional parameter
-	    i=1
+	    i=1 s=1
 	    # shellcheck disable=2086
-	    set -- $lower_list
+	    set -- $lower_search_list
 	    for line do
 		case $line in
-		    *$lower_str*) posnum="$posnum $i" ;;
+		    *$lower_str*)
+			case $token in
+			    l)
+				case $((s - bound)) in
+				    -*|0) posnum="$posnum $i" ;;
+				    *) break ;;
+				esac
+				s=$(( s + 1 ))
+				;;
+			    /) posnum="$posnum $i" ;;
+			esac
 		esac
 		i=$(( i + 1 ))
 	    done
@@ -305,15 +316,20 @@ search() {
 
 	    # Second run: match the item based on posnum above
 	    # shellcheck disable=2086
-	    set -- $list
+	    set -- $search_list
 
 	    j=1
 	    for line do
+		[ -z "$posnum" ] && break
 		n=${posnum%% *} # first line number
 		case $j in
 		    "$n")
 			filter="$filter$IFS$line"
-			posnum=${posnum#* } # delete first numer
+
+			case $posnum in  # delete first number
+			    *[[:space:]]*) posnum=${posnum#* } ;;
+			    *) posnum= ;;
+			esac
 			;;
 		esac
 		j=$(( j + 1 ))
@@ -321,22 +337,38 @@ search() {
 
 	    ;;
 	*) # case-sensitive filter
-	    # shellcheck disable=2086
-	    set -- $list
+
+	    s=1
+
+	    set -- $search_list
 	    for line do
 		case $line in
-		    *$str*) filter="$filter$IFS$line" ;;
+		    *$str*)
+			case $token in
+			    l)
+				case $((s - bound)) in
+				    -*|0) filter="$filter$IFS$line" ;;
+				    *) break ;;
+				esac
+				s=$(( s + 1 ))
+				;;
+			    /) filter="$filter$IFS$line" ;;
+			esac
 		esac
 	    done
+
 	    ;;
     esac
 
     filt_out=${filter#*$IFS}
 
-    unset list IFS str filter posnum lower_list lower_str i j n
+    unset search_list IFS str filter posnum lower_list lower_str i j n s
+
 }
 
 key() {
+
+    loop=$(( loop + 1 ))
 
     # Generate new list
     case $(( y - move )) in
@@ -491,7 +523,7 @@ key() {
 
 		case $token in
 		    '?'|'/')
-			unset token
+			unset token filt_out ans
 			old_reset
 			IFS=${ifs:=$nl}
 			# shellcheck disable=2086
@@ -505,7 +537,7 @@ key() {
 	    ;;
 
 	    /?)
-		count=0
+		count=0 bound=$width
 
 		old_save
 
@@ -513,12 +545,28 @@ key() {
 
 		    case $live_search in
 		        '')
+			    token='/'
 			    prompt / r
 			    ;;
 			1)
+			    token='l'
 			    prompt "/$ans" l
 			    case $press in
-				''|"$esc_c")  ltype="Search mode"; break ;;
+				''|"$esc_c")
+				    ltype="Search mode"
+				    case $cur in
+				        'no result') continue ;;
+					*)
+					    token='/'
+					    case $# in
+						1) # only one result, directly output it
+						    term_reset
+						    return 1
+						    ;;
+					    esac
+					    ;;
+				    esac
+				    ;;
 				"$bs_char")
 				    [ -n "$ans" ] && ans=${ans%%?}
 				    count=0
@@ -532,6 +580,7 @@ key() {
 				    unset IFS
 				    tab_complete "$@"
 				    ;;
+				[[:cntrl:]]) continue ;;
 				*)
 				    ans="$ans$press"
 				    count=0
@@ -546,20 +595,20 @@ key() {
 		    # shellcheck disable=2086
 		    set -- $filt_out
 		    unset IFS
+
+		    y=1; yy=1; y2=$top; msg="Search by *$ans*";
+
 		    case $# in
 		        0) num=1; set -- 'no result' ;;
 		    esac
 
-		    y=1; yy=1; y2=$top; last=$#; msg="Search by *$ans*; tot=$# count=$count; len=$len"; token='/';
-
-		    len=$(( $# > 500 ? 500 : $# ))
-
-		    redraw "$@"
-
-		    [ -z "$live_search" ] && break
+		    case $token in
+		        l) last='??'; redraw "$@" ;;
+			/) last=$#; len=$(( $# > 500 ? 500 : $# )); redraw "$@"; break ;;
+		    esac
 		done
 
-		unset count complist ans
+		unset count complist bound
 
 		return 0
 	    ;;
@@ -618,6 +667,7 @@ main() {
     while [ $? -eq 0 ]; do
 	case $token in
 	    '/')
+		# search "$content" "$ifs" "$ans"
 		IFS=$ifs
 		# shellcheck disable=2086
 		set -- $filt_out
