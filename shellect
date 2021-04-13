@@ -1,4 +1,4 @@
-#!/usr/bin/env dash
+#!/usr/bin/env sh
 
 # Variable explain:
 # $y: the current argument in the whole content
@@ -734,6 +734,13 @@ key() {
 		       'g/Home/Ctrl-a - go to top' \
 		       'G/End/Ctrl-e - go to bottom' \
 		       '/ - search' \
+		       '    live-search detail:' \
+		       '        Enter - confirm' \
+		       '        Backspace - delete previous character' \
+		       '        Tab - Tab-completion forward' \
+		       '        Shift-Tab - Tab-completion backward' \
+		       '        control char ignore' \
+		       '        others print out' \
 		       '? - show keybinds' \
 		       'q - quit'
 
