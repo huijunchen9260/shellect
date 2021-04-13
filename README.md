@@ -8,6 +8,7 @@ shellect is a selection system written in POSIX shell.
 <!-- vim-markdown-toc GFM -->
 
 * [Preview](#preview)
+* [Dependency](#dependency)
 * [Introduction](#introduction)
 * [Implementation Details](#implementation-details)
 	* [Explanation for TUI manipulation](#explanation-for-tui-manipulation)
@@ -19,9 +20,14 @@ shellect is a selection system written in POSIX shell.
 
 [![shellect](https://asciinema.org/a/jLJay0bFv0mqSfcnWbAWYiVwu.png)](https://asciinema.org/a/jLJay0bFv0mqSfcnWbAWYiVwu)
 
-## Introduction
+## Dependency
 
-shellect born from my experience in developing my bibliography manager, [`shbib`](https://github.com/huijunchen9260/shbib), and I built [`shbib`](https://github.com/huijunchen9260/shbib) on the basis provided by [`shfm`](https://github.com/dylanaraps/shfm). I realized that if I do not obey the Unix philosophy and keep adding functions to [`shbib`](https://github.com/huijunchen9260/shbib), [`shbib`](https://github.com/huijunchen9260/shbib) would grow exponentially and eventually become a pain to maintain. Therefore, I isolate out shellect as an individual selection system that just written in POSIX shell.
+1. POSIX-compliant shell: printf, set, unset, shift, test, while, continue, break, return, case, trap, getopts
+2. stty
+3. dd
+4. cat
+
+## Introduction
 
 shellect will either accept standard input or assign the display content by `-c` option, i.e., to display all the non-hidden files and directories in your `$HOME` directory,
 
@@ -81,6 +87,8 @@ live-search detail:
 
 ## Implementation Details
 
+shellect born from my experience in developing my bibliography manager, [`shbib`](https://github.com/huijunchen9260/shbib), and I built [`shbib`](https://github.com/huijunchen9260/shbib) on the basis provided by [`shfm`](https://github.com/dylanaraps/shfm). I realized that if I do not obey the Unix philosophy and keep adding functions to [`shbib`](https://github.com/huijunchen9260/shbib), [`shbib`](https://github.com/huijunchen9260/shbib) would grow exponentially and eventually become a pain to maintain. Therefore, I isolate out shellect as an individual selection system that just written in POSIX shell.
+
 ### Explanation for TUI manipulation
 
 Basically, printing out the raw escape sequence to manipulate the terminal output works in most terminal, and its function is way richer than `tput`.
@@ -96,29 +104,43 @@ All of the resource can be found in the following three resources:
 esc() {
     case $1 in
         # vt100 (IL is vt102) (DECTCEM is vt520)
-	CUP)     printf '%s[%s;%sH' "$esc_c" "$2" "$3" ;; # cursor to LINES($2), COLUMNS($3)
-        CUU)     printf '%s[%sA'    "$esc_c" "$2"      ;; # cursor up
-        CUD)     printf '%s[%sB'    "$esc_c" "$2"      ;; # cursor down
-        CUR)     printf '%s[%sC'    "$esc_c" "$2"      ;; # cursor right
-	CUL)     printf '%s[%sD'    "$esc_c" "$2"      ;; # cursor left
-	DECAWM)  printf '%s[?7%s'   "$esc_c" "$2"      ;; # (h: set; l: unset) line wrap
-        DECRC)   printf '%s8'       "$esc_c"           ;; # cursor restore
-        DECSC)   printf '%s7'       "$esc_c"           ;; # cursor save
-        DECSTBM) printf '%s[%s;%sr' "$esc_c" "$2" "$3" ;; # scroll region ($2: top; $3: bottom)
-        DECSLRM) printf '%s[%s;%ss' "$esc_c" "$2" "$3" ;; # Set left and right margin
-	DECTCEM) printf '%s[?25%s'  "$esc_c" "$2"      ;; # (h: show; l: hide) cursor visible
-	ED[0-2]) printf '%s[%sJ'    "$esc_c" "${1#ED}" ;; # clear screen
+	CUP)     printf '%s[%s;%sH' "$esc_c" "$2" "$3" ;;
+	    # cursor to LINES($2), COLUMNS($3)
+        CUU)     printf '%s[%sA'    "$esc_c" "$2"      ;;
+	    # cursor up
+        CUD)     printf '%s[%sB'    "$esc_c" "$2"      ;;
+	    # cursor down
+        CUR)     printf '%s[%sC'    "$esc_c" "$2"      ;;
+	    # cursor right
+	CUL)     printf '%s[%sD'    "$esc_c" "$2"      ;;
+	    # cursor left
+	DECAWM)  printf '%s[?7%s'   "$esc_c" "$2"      ;;
+	    # (h: set; l: unset) line wrap
+        DECRC)   printf '%s8'       "$esc_c"           ;;
+	    # cursor restore
+        DECSC)   printf '%s7'       "$esc_c"           ;;
+	    # cursor save
+        DECSTBM) printf '%s[%s;%sr' "$esc_c" "$2" "$3" ;;
+	    # scroll region ($2: top; $3: bottom)
+        DECSLRM) printf '%s[%s;%ss' "$esc_c" "$2" "$3" ;;
+	    # Set left and right margin
+	DECTCEM) printf '%s[?25%s'  "$esc_c" "$2"      ;;
+	    # (h: show; l: hide) cursor visible
+	ED[0-2]) printf '%s[%sJ'    "$esc_c" "${1#ED}" ;;
 	    # Erase Display:
 	    # 0: From the cursor through the end of the display
 	    # 1: From the beginning of the display through the cursor
 	    # 2: The complete display
-        EL[0-2]) printf '%s[%sK'    "$esc_c" "${1#EL}" ;; # clear line
+        EL[0-2]) printf '%s[%sK'    "$esc_c" "${1#EL}" ;;
 	    # Erase Line:
 	    # 0: from cursor to end of the line
 	    # 1: from beginning of the line to cursor
 	    # 2: entire line
-        IL)      printf '%s[%sL'    "$esc_c" "$2"      ;; # insert blank line
-	SGR)     printf '%s[%s;%sm' "$esc_c" "$2" "$3" ;; # colors ($2); attribute ($3)
+        IL)      printf '%s[%sL'    "$esc_c" "$2"      ;;
+	    # insert blank line
+	SGR)     printf '%s[%s;%sm' "$esc_c" "$2" "$3" ;;
+	    # colors ($2); attribute ($3)
+
 	    # Color list:
 	    # 			FG	BG
 	    # Black		30	40
@@ -206,7 +228,7 @@ key() {
 
 main() {
     ...
-    while [$? -eq 0]; do # If return 0, stay in while loop; others, leave the while loop
+    while [ $? -eq 0 ]; do # If return 0, stay in while loop; others, leave the while loop
 	set -- $content	# total content
 	key "$@"
     done
