@@ -10,6 +10,7 @@ shellect is a selection system written in POSIX shell.
 * [Preview](#preview)
 * [Dependency](#dependency)
 * [Introduction](#introduction)
+* [Projects that is using `shellect`](#projects-that-is-using-shellect)
 * [Implementation Details](#implementation-details)
 	* [Explanation for TUI manipulation](#explanation-for-tui-manipulation)
 	* [Overcome the limitation of POSIX shell](#overcome-the-limitation-of-posix-shell)
@@ -84,6 +85,11 @@ live-search detail:
   control char		ignore
   others		print out
 ```
+
+## Projects that is using `shellect`
+
+- [bib.awk](https://github.com/huijunchen9260/bib.awk)
+- [dmenufm](https://github.com/huijunchen9260/dmenufm)
 
 ## Implementation Details
 
