@@ -694,7 +694,6 @@ key() {
 		    set -- $filt_out
 		    unset IFS
 
-		    y=1; yy=1; y2=$top; pos=$top;
 
 		    msg="Search by *${ans%%$nl*}*";
 
@@ -705,12 +704,13 @@ key() {
 		    case $token in
 		        l)
 			    last='??'
-			    last_filt_out=$filt_out
+			    last_filt_out="$filt_out"
 			    redraw "$@"
 			    ;;
 			/)
 			    last=$#
 			    len=$(( $# > 500 ? 500 : $# ))
+			    num=$old_num
 			    term_getsize
 			    term_setup
 			    redraw "$@"
