@@ -1,5 +1,21 @@
 #!/usr/bin/env sh
 
+#  shellect - an interactive select utility for POSIX shells
+#  Copyright (C) 2025 Hui-Jun Chen
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License along
+#  with this program; if not, see <https://www.gnu.org/licenses/>.
+
 # Variable explain:
 # $y: the current argument in the whole content
 # $yy: the current argument in the list
@@ -10,7 +26,9 @@
 # $token: indicator for actions
 # Dimension is adjustable by $top & $bottom
 
-# Stolen from shfm
+# Copied from shfm under MIT License:
+# Copyright (c) 2020 Dylan Araps
+# https://github.com/dylanaraps/shfm
 esc() {
     case $1 in
         # vt100 (IL is vt102) (DECTCEM is vt520)
