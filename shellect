@@ -83,6 +83,16 @@ term_reset() {
     stty "$stty"
 }
 
+term_init() {
+    term_setup
+    stty_init="$stty"
+}
+
+term_exit() {
+    stty="$stty_init"
+    term_reset
+}
+
 old_save() {
     old_num=$num
     old_y=$y
@@ -717,7 +727,7 @@ key() {
                 ;;
 
             q?) # q
-                term_reset
+                term_exit
                 exit 0
                 ;;
             "$esc_c"*) esc=1 ;;
@@ -733,11 +743,11 @@ main() {
 
     set -e
 
-    trap 'term_reset; exit 0' INT QUIT
+    trap 'term_exit; exit 0' INT QUIT
     trap 'term_getsize; term_setup; y=1; yy=1; y2=$top; pos=$top; redraw "$@"' WINCH
 
     term_getsize
-    term_setup
+    term_init
     y=1 yy=1 y2=$top pos=$top
 
     IFS=${ifs:=$nl}
